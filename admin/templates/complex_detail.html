@@ -19,6 +19,10 @@
     <button type="submit" name="verdict" value="{{ key }}">{{ label }}</button>
     {% endfor %}
   </form>
+  <form method="post" action="{{ url_for('exclude_complex', cam_id=row.cam_id) }}" style="margin-top:10px" onsubmit="return confirm('Это не ЖК? Объект будет удалён из базы и больше не будет парситься.');">
+    <input type="hidden" name="reason" value="не ЖК / мусорный объект">
+    <button type="submit" style="color:#d63b3b;border-color:#d63b3b;border:1px solid #d63b3b;background:#fff;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">Не ЖК — убрать из базы</button>
+  </form>
 </div>
 
 {% if history %}

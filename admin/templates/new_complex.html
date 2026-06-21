@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Новый объект без CAM ID</h2>
+<p style="color:#888">Появился на парсе, но ещё не сматчен с CAM ID — добавляем по адресу, ему присвоится временный ID вида MAN-0001.</p>
+{% if error %}<p style="color:#d63b3b">{{ error }}</p>{% endif %}
+<form method="post" class="card" style="display:flex;flex-direction:column;gap:10px;max-width:480px">
+  <label>Адрес *<br><input type="text" name="address" required style="width:100%"></label>
+  <label>Название (если есть)<br><input type="text" name="project_name" style="width:100%"></label>
+  <label>Район<br><input type="text" name="district_name" style="width:100%"></label>
+  <div style="display:flex;gap:10px">
+    <label>Lat<br><input type="text" name="lat"></label>
+    <label>Lng<br><input type="text" name="lng"></label>
+  </div>
+  <label>Комментарий<br><input type="text" name="note" style="width:100%"></label>
+  <button type="submit" class="btn" style="cursor:pointer">Добавить</button>
+</form>
+{% endblock %}

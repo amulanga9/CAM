@@ -102,11 +102,13 @@ def to_int(v):
 
 
 def build_schema(conn):
+    # complexes/developers/contractors пересобираются с нуля при каждом импорте,
+    # т.к. их источник — Excel. reviews и excluded_ids — ручные решения, которые
+    # должны переживать повторный импорт, поэтому их не дропаем.
     conn.executescript('''
     DROP TABLE IF EXISTS complexes;
     DROP TABLE IF EXISTS developers;
     DROP TABLE IF EXISTS contractors;
-    DROP TABLE IF EXISTS reviews;
 
     CREATE TABLE complexes (
         cam_id            TEXT PRIMARY KEY,
@@ -158,21 +160,47 @@ def build_schema(conn):
         complexes_count INTEGER
     );
 
-    CREATE TABLE reviews (
+    CREATE TABLE IF NOT EXISTS reviews (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         cam_id      TEXT NOT NULL,
         reviewed_at TEXT NOT NULL,
         verdict     TEXT NOT NULL,   -- delivered | building | frozen | cancelled
-        comment     TEXT,
-        FOREIGN KEY (cam_id) REFERENCES complexes(cam_id)
+        comment     TEXT
+    );
+
+    -- объекты-мусор (не ЖК), которые больше не должны попадать ни в импорт,
+    -- ни в будущий парсинг
+    CREATE TABLE IF NOT EXISTS excluded_ids (
+        cam_id      TEXT PRIMARY KEY,
+        reason      TEXT,
+        excluded_at TEXT
+    );
+
+    -- объекты, добавленные вручную через админку (ещё не получили CAM ID
+    -- из основного пайплайна), идентифицируются по адресу
+    CREATE TABLE IF NOT EXISTS manual_complexes (
+        cam_id       TEXT PRIMARY KEY,
+        project_name TEXT,
+        address      TEXT NOT NULL,
+        district_name TEXT,
+        lat          REAL,
+        lng          REAL,
+        note         TEXT,
+        created_at   TEXT
     );
     ''')
 
 
+def load_excluded_ids(conn):
+    return {r[0] for r in conn.execute('SELECT cam_id FROM excluded_ids')}
+
+
 def import_objects(conn, wb):
     cur = conn.cursor()
+    excluded = load_excluded_ids(conn)
     seen = set()
     total = 0
+    skipped_excluded = 0
     for sheet_name in OBJECT_SHEETS:
         if sheet_name not in wb.sheetnames:
             print(f'  пропущен лист (не найден): {sheet_name}')
@@ -188,6 +216,9 @@ def import_objects(conn, wb):
             if not cam_id:
                 continue
             cam_id = str(cam_id)
+            if cam_id in excluded:
+                skipped_excluded += 1
+                continue  # помечен как "не ЖК" — не возвращаем в базу
             if cam_id in seen:
                 continue  # одна и та же запись может встречаться на нескольких листах
             seen.add(cam_id)
@@ -238,7 +269,48 @@ def import_objects(conn, wb):
         print(f'  {sheet_name}: {n} новых записей')
         total += n
     conn.commit()
-    print(f'Всего объектов: {total}')
+    print(f'Всего объектов: {total} (пропущено как "не ЖК": {skipped_excluded})')
+
+
+def reapply_reviews(conn):
+    """После пересборки complexes возвращаем ранее принятые решения,
+    чтобы повторный импорт не сбрасывал то, что уже проверено вручную."""
+    cur = conn.cursor()
+    latest = cur.execute('''
+        SELECT cam_id, verdict FROM reviews r
+        WHERE reviewed_at = (SELECT MAX(reviewed_at) FROM reviews WHERE cam_id = r.cam_id)
+    ''').fetchall()
+    n = 0
+    for cam_id, verdict in latest:
+        cur.execute(
+            'UPDATE complexes SET case_status_clean=?, needs_review=0 WHERE cam_id=?',
+            (verdict, cam_id),
+        )
+        n += cur.rowcount
+    conn.commit()
+    print(f'Применены ранее сохранённые решения: {n}')
+
+
+def merge_manual_complexes(conn):
+    cur = conn.cursor()
+    rows = cur.execute('SELECT * FROM manual_complexes').fetchall()
+    cols = [d[0] for d in cur.description]
+    n = 0
+    for row in rows:
+        d = dict(zip(cols, row))
+        cur.execute('''
+            INSERT OR IGNORE INTO complexes (
+                cam_id, source_sheet, project_name, address, lat, lng,
+                district_name, case_status_clean, needs_review, raw_json
+            ) VALUES (?,?,?,?,?,?,?,?,?,?)
+        ''', (
+            d['cam_id'], 'manual', d['project_name'], d['address'],
+            d['lat'], d['lng'], d['district_name'], 'unknown', 0,
+            json.dumps(d, ensure_ascii=False, default=str),
+        ))
+        n += cur.rowcount
+    conn.commit()
+    print(f'Добавлено вручную добавленных объектов: {n}')
 
 
 def import_ref_sheet(conn, wb, sheet_name, table):
@@ -277,6 +349,9 @@ def main():
     print('Импорт справочников:')
     for sheet, table in REF_SHEETS.items():
         import_ref_sheet(conn, wb, sheet, table)
+
+    reapply_reviews(conn)
+    merge_manual_complexes(conn)
 
     cur = conn.execute('SELECT COUNT(*) FROM complexes WHERE needs_review=1')
     print(f'\nТребуют проверки (needs_review=1): {cur.fetchone()[0]}')
