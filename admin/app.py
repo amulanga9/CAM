@@ -23,6 +23,13 @@ VERDICTS = {
     'cancelled': 'Отменён',
 }
 
+EDITABLE_FIELDS = [
+    'project_name', 'address', 'district_name', 'lat', 'lng',
+    'developer_name', 'developer_inn', 'developer_rating',
+    'contractor_name', 'contractor_inn', 'contractor_rating',
+    'deadline', 'dom_class', 'price_per_m2_uzs', 'listing_url',
+]
+
 app = Flask(__name__)
 
 
@@ -138,6 +145,31 @@ def new_complex():
         request.form.get('lat') or None,
         request.form.get('lng') or None,
     ))
+    db.commit()
+    return redirect(url_for('complex_detail', cam_id=cam_id))
+
+
+@app.route('/complex/<cam_id>/edit', methods=['POST'])
+def edit_complex(cam_id):
+    db = get_db()
+    values = {f: request.form.get(f, '').strip() for f in EDITABLE_FIELDS}
+    values = {f: (v if v != '' else None) for f, v in values.items()}
+
+    cols = ', '.join(EDITABLE_FIELDS)
+    placeholders = ', '.join('?' for _ in EDITABLE_FIELDS)
+    update_cols = ', '.join(f'{f}=excluded.{f}' for f in EDITABLE_FIELDS)
+    db.execute(f'''
+        INSERT INTO overrides (cam_id, {cols}, updated_at)
+        VALUES (?, {placeholders}, ?)
+        ON CONFLICT(cam_id) DO UPDATE SET {update_cols}, updated_at=excluded.updated_at
+    ''', [cam_id] + [values[f] for f in EDITABLE_FIELDS] + [datetime.now(timezone.utc).isoformat()])
+
+    # применяем сразу же, не дожидаясь следующего import_master.py
+    sets = [(f, v) for f, v in values.items() if v is not None]
+    if sets:
+        assignment = ', '.join(f'{f}=?' for f, _ in sets)
+        db.execute(f'UPDATE complexes SET {assignment} WHERE cam_id=?', [v for _, v in sets] + [cam_id])
+
     db.commit()
     return redirect(url_for('complex_detail', cam_id=cam_id))
 

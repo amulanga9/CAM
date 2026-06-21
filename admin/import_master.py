@@ -134,6 +134,7 @@ def build_schema(conn):
         days_overdue      INTEGER,
         dom_class         TEXT,
         price_per_m2_uzs  REAL,
+        listing_url       TEXT,
         needs_review      INTEGER DEFAULT 0,
         raw_json          TEXT
     );
@@ -174,6 +175,29 @@ def build_schema(conn):
         cam_id      TEXT PRIMARY KEY,
         reason      TEXT,
         excluded_at TEXT
+    );
+
+    -- ручные правки полей карточки (дозаполнение/исправление недостающих
+    -- данных). Переживают реимпорт и переприменяются к complexes после
+    -- пересборки из Excel.
+    CREATE TABLE IF NOT EXISTS overrides (
+        cam_id            TEXT PRIMARY KEY,
+        project_name      TEXT,
+        address           TEXT,
+        district_name     TEXT,
+        lat               REAL,
+        lng               REAL,
+        developer_name    TEXT,
+        developer_inn     TEXT,
+        developer_rating  TEXT,
+        contractor_name   TEXT,
+        contractor_inn    TEXT,
+        contractor_rating TEXT,
+        deadline          TEXT,
+        dom_class         TEXT,
+        price_per_m2_uzs  REAL,
+        listing_url       TEXT,
+        updated_at        TEXT
     );
 
     -- объекты, добавленные вручную через админку (ещё не получили CAM ID
@@ -272,6 +296,32 @@ def import_objects(conn, wb):
     print(f'Всего объектов: {total} (пропущено как "не ЖК": {skipped_excluded})')
 
 
+# поля, которые можно дозаполнить/исправить вручную в карточке объекта
+EDITABLE_FIELDS = [
+    'project_name', 'address', 'district_name', 'lat', 'lng',
+    'developer_name', 'developer_inn', 'developer_rating',
+    'contractor_name', 'contractor_inn', 'contractor_rating',
+    'deadline', 'dom_class', 'price_per_m2_uzs', 'listing_url',
+]
+
+
+def reapply_overrides(conn):
+    """Возвращает ранее введённые вручную поля поверх пересобранных complexes."""
+    cur = conn.cursor()
+    rows = cur.execute(f'SELECT cam_id, {", ".join(EDITABLE_FIELDS)} FROM overrides').fetchall()
+    n = 0
+    for row in rows:
+        cam_id, values = row[0], row[1:]
+        sets = [(f, v) for f, v in zip(EDITABLE_FIELDS, values) if v is not None and v != '']
+        if not sets:
+            continue
+        assignment = ', '.join(f'{f}=?' for f, _ in sets)
+        cur.execute(f'UPDATE complexes SET {assignment} WHERE cam_id=?', [v for _, v in sets] + [cam_id])
+        n += cur.rowcount
+    conn.commit()
+    print(f'Применены ранее сохранённые правки полей: {n}')
+
+
 def reapply_reviews(conn):
     """После пересборки complexes возвращаем ранее принятые решения,
     чтобы повторный импорт не сбрасывал то, что уже проверено вручную."""
@@ -350,8 +400,9 @@ def main():
     for sheet, table in REF_SHEETS.items():
         import_ref_sheet(conn, wb, sheet, table)
 
-    reapply_reviews(conn)
     merge_manual_complexes(conn)
+    reapply_reviews(conn)
+    reapply_overrides(conn)
 
     cur = conn.execute('SELECT COUNT(*) FROM complexes WHERE needs_review=1')
     print(f'\nТребуют проверки (needs_review=1): {cur.fetchone()[0]}')

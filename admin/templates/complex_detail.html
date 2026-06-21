@@ -1,15 +1,43 @@
 {% extends 'base.html' %}
 {% block content %}
 <h2>{{ row.cam_id }} — {{ row.project_name or row.address or '' }}</h2>
+
 <div class="card">
-  <p><b>Адрес:</b> {{ row.address or '—' }} ({{ row.district_name or '—' }})</p>
-  <p><b>Координаты:</b> {{ row.lat }}, {{ row.lng }}</p>
-  <p><b>Застройщик:</b> {{ row.developer_name or '—' }} (ИНН {{ row.developer_inn or '—' }}, рейтинг {{ row.developer_rating or '—' }})</p>
-  <p><b>Подрядчик:</b> {{ row.contractor_name or '—' }} (ИНН {{ row.contractor_inn or '—' }}, рейтинг {{ row.contractor_rating or '—' }})</p>
-  <p><b>Дедлайн:</b> {{ row.deadline or '—' }} | <b>Дней просрочки:</b> {{ row.days_overdue or '—' }}</p>
-  <p><b>Статус (исходный):</b> {{ row.case_status_raw or '—' }} → <span class="badge {{ row.case_status_clean }}">{{ row.case_status_clean }}</span></p>
-  <p><b>Источник листа:</b> {{ row.source_sheet }}</p>
+  <h3>Карточка объекта (доступно для дозаполнения/исправления)</h3>
+  <form method="post" action="{{ url_for('edit_complex', cam_id=row.cam_id) }}" class="edit-grid">
+    <label>Название<input type="text" name="project_name" value="{{ row.project_name or '' }}"></label>
+    <label>Адрес<input type="text" name="address" value="{{ row.address or '' }}"></label>
+    <label>Район<input type="text" name="district_name" value="{{ row.district_name or '' }}"></label>
+    <label>Lat<input type="text" name="lat" value="{{ row.lat or '' }}"></label>
+    <label>Lng<input type="text" name="lng" value="{{ row.lng or '' }}"></label>
+    <label>Застройщик<input type="text" name="developer_name" value="{{ row.developer_name or '' }}"></label>
+    <label>ИНН застройщика<input type="text" name="developer_inn" value="{{ row.developer_inn or '' }}"></label>
+    <label>Рейтинг застройщика<input type="text" name="developer_rating" value="{{ row.developer_rating or '' }}"></label>
+    <label>Подрядчик<input type="text" name="contractor_name" value="{{ row.contractor_name or '' }}"></label>
+    <label>ИНН подрядчика<input type="text" name="contractor_inn" value="{{ row.contractor_inn or '' }}"></label>
+    <label>Рейтинг подрядчика<input type="text" name="contractor_rating" value="{{ row.contractor_rating or '' }}"></label>
+    <label>Дедлайн<input type="text" name="deadline" value="{{ row.deadline or '' }}"></label>
+    <label>Класс дома<input type="text" name="dom_class" value="{{ row.dom_class or '' }}"></label>
+    <label>Цена за м² (сум)<input type="text" name="price_per_m2_uzs" value="{{ row.price_per_m2_uzs or '' }}"></label>
+    <label class="wide">Ссылка на коммерческую продажу (domtut / imo.uz / др.)<input type="text" name="listing_url" value="{{ row.listing_url or '' }}" placeholder="https://domtut.uz/... или https://imo.uz/..."></label>
+    <div class="wide"><button type="submit" style="padding:6px 14px;border:1px solid #1a1a18;border-radius:6px;background:#1a1a18;color:#fff;cursor:pointer">Сохранить</button></div>
+  </form>
+  {% if row.listing_url %}
+  <p style="margin-top:10px"><a href="{{ row.listing_url }}" target="_blank" rel="noopener">Открыть объявление о продаже →</a></p>
+  {% endif %}
+  <p style="color:#888;margin-top:10px">
+    Дней просрочки: {{ row.days_overdue or '—' }} |
+    Статус (исходный): {{ row.case_status_raw or '—' }} → <span class="badge {{ row.case_status_clean }}">{{ row.case_status_clean }}</span> |
+    Источник листа: {{ row.source_sheet }}
+  </p>
 </div>
+
+<style>
+.edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
+.edit-grid label{display:flex;flex-direction:column;font-size:12px;color:#888;gap:4px}
+.edit-grid label.wide{grid-column:1 / -1}
+.edit-grid input{padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;color:#1a1a18}
+</style>
 
 <div class="card">
   <h3>Подтвердить статус</h3>
