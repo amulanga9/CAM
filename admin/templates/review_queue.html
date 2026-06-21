@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Очередь проверки ({{ rows|length }})</h2>
+<p style="color:#888">Объекты с неясным/просроченным статусом. Подтверди факт по каждому: сдан, строится, заморожен, отменён.</p>
+<table>
+<tr>
+  <th>CAM ID</th><th>Название / адрес</th><th>Район</th>
+  <th>Дедлайн</th><th>Дней просрочки</th><th>Статус (исходный)</th><th>Решение</th>
+</tr>
+{% for r in rows %}
+<tr>
+  <td><a href="{{ url_for('complex_detail', cam_id=r.cam_id) }}">{{ r.cam_id }}</a></td>
+  <td>{{ r.project_name or '—' }}<br><small style="color:#888">{{ r.address or '' }}</small></td>
+  <td>{{ r.district_name or '—' }}</td>
+  <td>{{ r.deadline or '—' }}</td>
+  <td>{{ r.days_overdue or '—' }}</td>
+  <td><small>{{ r.case_status_raw or '—' }}</small></td>
+  <td>
+    <form class="verdict" method="post" action="{{ url_for('submit_review', cam_id=r.cam_id) }}">
+      {% for key, label in verdicts.items() %}
+      <button type="submit" name="verdict" value="{{ key }}">{{ label }}</button>
+      {% endfor %}
+    </form>
+  </td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

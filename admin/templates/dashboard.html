@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+  <div class="stat"><b>{{ stats.total }}</b><span>Всего объектов</span></div>
+  <div class="stat"><b>{{ stats.needs_review }}</b><span>Требуют проверки</span></div>
+  <div class="stat"><b>{{ stats.reviewed }}</b><span>Уже проверено</span></div>
+</div>
+<div class="card">
+  <h3>По статусам</h3>
+  <table>
+    <tr><th>Статус</th><th>Кол-во</th></tr>
+    {% for s in by_status %}
+    <tr><td><span class="badge {{ s.case_status_clean }}">{{ s.case_status_clean }}</span></td><td>{{ s.n }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% if stats.needs_review %}
+<p><a class="btn" href="{{ url_for('review_queue') }}">Открыть очередь проверки ({{ stats.needs_review }}) →</a></p>
+{% endif %}
+{% endblock %}

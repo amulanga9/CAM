@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Все объекты</h2>
+<form method="get" style="margin-bottom:14px;display:flex;gap:8px">
+  <input type="text" name="q" value="{{ q }}" placeholder="поиск по названию/адресу/id">
+  <select name="status">
+    <option value="">— любой статус —</option>
+    {% for s in ['delivered','in_progress','stopped','frozen','cancelled','unclear','unknown'] %}
+    <option value="{{ s }}" {% if s==status %}selected{% endif %}>{{ s }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit">Фильтр</button>
+</form>
+<table>
+<tr><th>CAM ID</th><th>Название / адрес</th><th>Район</th><th>Статус</th><th>Дедлайн</th><th>Просрочка</th></tr>
+{% for r in rows %}
+<tr>
+  <td><a href="{{ url_for('complex_detail', cam_id=r.cam_id) }}">{{ r.cam_id }}</a></td>
+  <td>{{ r.project_name or '—' }}<br><small style="color:#888">{{ r.address or '' }}</small></td>
+  <td>{{ r.district_name or '—' }}</td>
+  <td><span class="badge {{ r.case_status_clean }}">{{ r.case_status_clean }}</span></td>
+  <td>{{ r.deadline or '—' }}</td>
+  <td>{{ r.days_overdue or '—' }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endblock %}

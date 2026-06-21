@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>{% block title %}CAM admin{% endblock %}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,Arial,sans-serif;background:#f7f7f5;color:#1a1a18;margin:0;font-size:14px}
+  header{background:#1a1a18;color:#fff;padding:10px 20px;display:flex;gap:18px;align-items:center}
+  header a{color:#fff;text-decoration:none;font-size:13px;opacity:.85}
+  header a:hover{opacity:1}
+  header .logo{font-weight:700;margin-right:10px}
+  main{max-width:1100px;margin:20px auto;padding:0 16px}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e4e0}
+  th,td{padding:8px 10px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}
+  th{background:#fafafa;font-size:12px;text-transform:uppercase;color:#888}
+  tr:hover{background:#fafafa}
+  .badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+  .badge.unclear{background:#fdf6ec;color:#c97d1a}
+  .badge.in_progress{background:#eef3fd;color:#2563eb}
+  .badge.delivered{background:#f0f8f1;color:#2a7a3b}
+  .badge.frozen,.badge.stopped{background:#fdf1f1;color:#d63b3b}
+  .badge.cancelled{background:#eee;color:#666}
+  .card{background:#fff;border:1px solid #e5e4e0;border-radius:8px;padding:16px;margin-bottom:12px}
+  .stat{display:inline-block;margin-right:28px}
+  .stat b{font-size:22px;display:block}
+  .stat span{font-size:11px;color:#888;text-transform:uppercase}
+  form.verdict{display:flex;gap:6px;flex-wrap:wrap}
+  form.verdict button{border:1px solid #ccc;background:#fff;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer}
+  form.verdict button:hover{background:#1a1a18;color:#fff}
+  input[type=text]{padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px}
+  a.btn{display:inline-block;padding:6px 12px;border:1px solid #ccc;border-radius:6px;font-size:12px;text-decoration:none;color:#1a1a18}
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">CAM admin</span>
+  <a href="{{ url_for('dashboard') }}">Дашборд</a>
+  <a href="{{ url_for('review_queue') }}">Очередь проверки</a>
+  <a href="{{ url_for('all_complexes') }}">Все объекты</a>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

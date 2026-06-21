@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>{{ row.cam_id }} — {{ row.project_name or row.address or '' }}</h2>
+<div class="card">
+  <p><b>Адрес:</b> {{ row.address or '—' }} ({{ row.district_name or '—' }})</p>
+  <p><b>Координаты:</b> {{ row.lat }}, {{ row.lng }}</p>
+  <p><b>Застройщик:</b> {{ row.developer_name or '—' }} (ИНН {{ row.developer_inn or '—' }}, рейтинг {{ row.developer_rating or '—' }})</p>
+  <p><b>Подрядчик:</b> {{ row.contractor_name or '—' }} (ИНН {{ row.contractor_inn or '—' }}, рейтинг {{ row.contractor_rating or '—' }})</p>
+  <p><b>Дедлайн:</b> {{ row.deadline or '—' }} | <b>Дней просрочки:</b> {{ row.days_overdue or '—' }}</p>
+  <p><b>Статус (исходный):</b> {{ row.case_status_raw or '—' }} → <span class="badge {{ row.case_status_clean }}">{{ row.case_status_clean }}</span></p>
+  <p><b>Источник листа:</b> {{ row.source_sheet }}</p>
+</div>
+
+<div class="card">
+  <h3>Подтвердить статус</h3>
+  <form class="verdict" method="post" action="{{ url_for('submit_review', cam_id=row.cam_id) }}">
+    <input type="text" name="comment" placeholder="комментарий (необязательно)">
+    {% for key, label in verdicts.items() %}
+    <button type="submit" name="verdict" value="{{ key }}">{{ label }}</button>
+    {% endfor %}
+  </form>
+</div>
+
+{% if history %}
+<div class="card">
+  <h3>История проверок</h3>
+  <table>
+    <tr><th>Когда</th><th>Решение</th><th>Комментарий</th></tr>
+    {% for h in history %}
+    <tr><td>{{ h.reviewed_at }}</td><td>{{ verdicts.get(h.verdict, h.verdict) }}</td><td>{{ h.comment or '' }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3>Все исходные поля</h3>
+  <table>
+    {% for k, v in raw.items() %}
+    <tr><td style="width:240px;color:#888">{{ k }}</td><td>{{ v }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}
