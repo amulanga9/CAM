@@ -14,7 +14,10 @@ from pathlib import Path
 
 from flask import Flask, g, redirect, render_template, request, url_for
 
+from import_master import build_manual_schema
+
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
+MANUAL_DB_PATH = Path(__file__).parent / 'cam_manual.db'
 
 VERDICTS = {
     'delivered': 'Сдан',
@@ -37,6 +40,8 @@ def get_db():
     if 'db' not in g:
         g.db = sqlite3.connect(DB_PATH)
         g.db.row_factory = sqlite3.Row
+        g.db.execute(f"ATTACH DATABASE '{MANUAL_DB_PATH}' AS manual")
+        build_manual_schema(g.db)  # на случай если app.py запущен раньше первого import_master.py
     return g.db
 
 
@@ -54,7 +59,7 @@ def dashboard():
         SELECT
             COUNT(*) AS total,
             SUM(needs_review) AS needs_review,
-            SUM(CASE WHEN cam_id IN (SELECT cam_id FROM reviews) THEN 1 ELSE 0 END) AS reviewed
+            SUM(CASE WHEN cam_id IN (SELECT cam_id FROM manual.reviews) THEN 1 ELSE 0 END) AS reviewed
         FROM complexes
     ''').fetchone()
     by_status = db.execute('''
@@ -70,7 +75,7 @@ def review_queue():
     rows = db.execute('''
         SELECT c.* FROM complexes c
         WHERE c.needs_review = 1
-          AND c.cam_id NOT IN (SELECT cam_id FROM reviews)
+          AND c.cam_id NOT IN (SELECT cam_id FROM manual.reviews)
         ORDER BY c.days_overdue DESC, c.cam_id
     ''').fetchall()
     return render_template('review_queue.html', rows=rows, verdicts=VERDICTS)
@@ -84,7 +89,7 @@ def submit_review(cam_id):
         return 'bad verdict', 400
     db = get_db()
     db.execute(
-        'INSERT INTO reviews (cam_id, reviewed_at, verdict, comment) VALUES (?,?,?,?)',
+        'INSERT INTO manual.reviews (cam_id, reviewed_at, verdict, comment) VALUES (?,?,?,?)',
         (cam_id, datetime.now(timezone.utc).isoformat(), verdict, comment),
     )
     # сразу обновляем чистый статус в самой записи, чтобы он попал в выгрузку для обучения
@@ -101,7 +106,7 @@ def exclude_complex(cam_id):
     reason = request.form.get('reason', '').strip()
     db = get_db()
     db.execute(
-        'INSERT OR REPLACE INTO excluded_ids (cam_id, reason, excluded_at) VALUES (?,?,?)',
+        'INSERT OR REPLACE INTO manual.excluded_ids (cam_id, reason, excluded_at) VALUES (?,?,?)',
         (cam_id, reason, datetime.now(timezone.utc).isoformat()),
     )
     db.execute('DELETE FROM complexes WHERE cam_id=?', (cam_id,))
@@ -119,10 +124,10 @@ def new_complex():
         return render_template('new_complex.html', error='Адрес обязателен для объектов без CAM ID')
 
     db = get_db()
-    n = db.execute('SELECT COUNT(*) FROM manual_complexes').fetchone()[0]
+    n = db.execute('SELECT COUNT(*) FROM manual.manual_complexes').fetchone()[0]
     cam_id = f'MAN-{n + 1:04d}'
     db.execute('''
-        INSERT INTO manual_complexes (cam_id, project_name, address, district_name, lat, lng, note, created_at)
+        INSERT INTO manual.manual_complexes (cam_id, project_name, address, district_name, lat, lng, note, created_at)
         VALUES (?,?,?,?,?,?,?,?)
     ''', (
         cam_id,
@@ -159,7 +164,7 @@ def edit_complex(cam_id):
     placeholders = ', '.join('?' for _ in EDITABLE_FIELDS)
     update_cols = ', '.join(f'{f}=excluded.{f}' for f in EDITABLE_FIELDS)
     db.execute(f'''
-        INSERT INTO overrides (cam_id, {cols}, updated_at)
+        INSERT INTO manual.overrides (cam_id, {cols}, updated_at)
         VALUES (?, {placeholders}, ?)
         ON CONFLICT(cam_id) DO UPDATE SET {update_cols}, updated_at=excluded.updated_at
     ''', [cam_id] + [values[f] for f in EDITABLE_FIELDS] + [datetime.now(timezone.utc).isoformat()])
@@ -182,7 +187,7 @@ def complex_detail(cam_id):
         return 'not found', 404
     raw = json.loads(row['raw_json']) if row['raw_json'] else {}
     history = db.execute(
-        'SELECT * FROM reviews WHERE cam_id=? ORDER BY reviewed_at DESC', (cam_id,)
+        'SELECT * FROM manual.reviews WHERE cam_id=? ORDER BY reviewed_at DESC', (cam_id,)
     ).fetchall()
     return render_template('complex_detail.html', row=row, raw=raw, history=history, verdicts=VERDICTS)
 

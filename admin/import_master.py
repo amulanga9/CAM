@@ -18,7 +18,16 @@ from pathlib import Path
 import openpyxl
 
 XLSX_PATH = Path(__file__).parent / 'data' / 'cam_master_2026_06_new.xlsx'
+
+# cam_admin.db — только "слепок" из Excel: complexes/developers/contractors.
+# Его можно безопасно удалять и пересобирать сколько угодно раз.
+#
+# cam_manual.db — твои ручные решения (проверки, исключённые "не ЖК",
+# правки полей, вручную добавленные объекты без CAM ID). Этот файл НИКОГДА
+# не дропается и не пересоздаётся этим скриптом — удалять его нельзя,
+# иначе пропадёт вся ручная работа.
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
+MANUAL_DB_PATH = Path(__file__).parent / 'cam_manual.db'
 
 OBJECT_SHEETS = [
     'Обучение',
@@ -103,8 +112,8 @@ def to_int(v):
 
 def build_schema(conn):
     # complexes/developers/contractors пересобираются с нуля при каждом импорте,
-    # т.к. их источник — Excel. reviews и excluded_ids — ручные решения, которые
-    # должны переживать повторный импорт, поэтому их не дропаем.
+    # т.к. их источник — Excel. Ручные данные живут в отдельном файле
+    # cam_manual.db (см. build_manual_schema) и сюда не попадают.
     conn.executescript('''
     DROP TABLE IF EXISTS complexes;
     DROP TABLE IF EXISTS developers;
@@ -160,8 +169,17 @@ def build_schema(conn):
         overdue_pct   REAL,
         complexes_count INTEGER
     );
+    ''')
 
-    CREATE TABLE IF NOT EXISTS reviews (
+
+def attach_manual_db(conn):
+    conn.execute(f"ATTACH DATABASE '{MANUAL_DB_PATH}' AS manual")
+
+
+def build_manual_schema(conn):
+    """cam_manual.db — никогда не дропается, только CREATE IF NOT EXISTS."""
+    conn.executescript('''
+    CREATE TABLE IF NOT EXISTS manual.reviews (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         cam_id      TEXT NOT NULL,
         reviewed_at TEXT NOT NULL,
@@ -171,7 +189,7 @@ def build_schema(conn):
 
     -- объекты-мусор (не ЖК), которые больше не должны попадать ни в импорт,
     -- ни в будущий парсинг
-    CREATE TABLE IF NOT EXISTS excluded_ids (
+    CREATE TABLE IF NOT EXISTS manual.excluded_ids (
         cam_id      TEXT PRIMARY KEY,
         reason      TEXT,
         excluded_at TEXT
@@ -180,7 +198,7 @@ def build_schema(conn):
     -- ручные правки полей карточки (дозаполнение/исправление недостающих
     -- данных). Переживают реимпорт и переприменяются к complexes после
     -- пересборки из Excel.
-    CREATE TABLE IF NOT EXISTS overrides (
+    CREATE TABLE IF NOT EXISTS manual.overrides (
         cam_id            TEXT PRIMARY KEY,
         project_name      TEXT,
         address           TEXT,
@@ -202,7 +220,7 @@ def build_schema(conn):
 
     -- объекты, добавленные вручную через админку (ещё не получили CAM ID
     -- из основного пайплайна), идентифицируются по адресу
-    CREATE TABLE IF NOT EXISTS manual_complexes (
+    CREATE TABLE IF NOT EXISTS manual.manual_complexes (
         cam_id       TEXT PRIMARY KEY,
         project_name TEXT,
         address      TEXT NOT NULL,
@@ -216,7 +234,7 @@ def build_schema(conn):
 
 
 def load_excluded_ids(conn):
-    return {r[0] for r in conn.execute('SELECT cam_id FROM excluded_ids')}
+    return {r[0] for r in conn.execute('SELECT cam_id FROM manual.excluded_ids')}
 
 
 def import_objects(conn, wb):
@@ -308,7 +326,7 @@ EDITABLE_FIELDS = [
 def reapply_overrides(conn):
     """Возвращает ранее введённые вручную поля поверх пересобранных complexes."""
     cur = conn.cursor()
-    rows = cur.execute(f'SELECT cam_id, {", ".join(EDITABLE_FIELDS)} FROM overrides').fetchall()
+    rows = cur.execute(f'SELECT cam_id, {", ".join(EDITABLE_FIELDS)} FROM manual.overrides').fetchall()
     n = 0
     for row in rows:
         cam_id, values = row[0], row[1:]
@@ -327,8 +345,8 @@ def reapply_reviews(conn):
     чтобы повторный импорт не сбрасывал то, что уже проверено вручную."""
     cur = conn.cursor()
     latest = cur.execute('''
-        SELECT cam_id, verdict FROM reviews r
-        WHERE reviewed_at = (SELECT MAX(reviewed_at) FROM reviews WHERE cam_id = r.cam_id)
+        SELECT cam_id, verdict FROM manual.reviews r
+        WHERE reviewed_at = (SELECT MAX(reviewed_at) FROM manual.reviews WHERE cam_id = r.cam_id)
     ''').fetchall()
     n = 0
     for cam_id, verdict in latest:
@@ -343,7 +361,7 @@ def reapply_reviews(conn):
 
 def merge_manual_complexes(conn):
     cur = conn.cursor()
-    rows = cur.execute('SELECT * FROM manual_complexes').fetchall()
+    rows = cur.execute('SELECT * FROM manual.manual_complexes').fetchall()
     cols = [d[0] for d in cur.description]
     n = 0
     for row in rows:
@@ -391,6 +409,8 @@ def main():
     wb = openpyxl.load_workbook(XLSX_PATH, data_only=True)
 
     conn = sqlite3.connect(DB_PATH)
+    attach_manual_db(conn)
+    build_manual_schema(conn)
     build_schema(conn)
 
     print('Импорт объектов:')
@@ -407,7 +427,7 @@ def main():
     cur = conn.execute('SELECT COUNT(*) FROM complexes WHERE needs_review=1')
     print(f'\nТребуют проверки (needs_review=1): {cur.fetchone()[0]}')
     conn.close()
-    print(f'\nГотово: {DB_PATH}')
+    print(f'\nГотово: {DB_PATH} (ручные данные в {MANUAL_DB_PATH})')
 
 
 if __name__ == '__main__':

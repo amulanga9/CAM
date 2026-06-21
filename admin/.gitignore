@@ -1,4 +1,5 @@
 cam_admin.db
+cam_manual.db
 __pycache__/
 *.pyc
 data/cam_training_export.csv
