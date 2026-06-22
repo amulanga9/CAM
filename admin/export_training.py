@@ -20,7 +20,8 @@ FIELDS = [
     'contractor_name', 'contractor_inn', 'contractor_rating',
     'created_at', 'deadline', 'case_status_raw', 'case_status_clean',
     'master_status', 'target', 'is_overdue', 'days_overdue',
-    'dom_class', 'price_per_m2_uzs', 'listing_url', 'needs_review',
+    'dom_class', 'price_per_m2_uzs', 'listing_url', 'brand_name',
+    'delivered_year', 'needs_review',
 ]
 
 

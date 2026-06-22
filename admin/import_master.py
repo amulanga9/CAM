@@ -144,6 +144,8 @@ def build_schema(conn):
         dom_class         TEXT,
         price_per_m2_uzs  REAL,
         listing_url       TEXT,
+        brand_name        TEXT,
+        delivered_year    TEXT,
         needs_review      INTEGER DEFAULT 0,
         raw_json          TEXT
     );
@@ -215,6 +217,8 @@ def build_manual_schema(conn):
         dom_class         TEXT,
         price_per_m2_uzs  REAL,
         listing_url       TEXT,
+        brand_name        TEXT,
+        delivered_year    TEXT,
         updated_at        TEXT
     );
 
@@ -231,6 +235,15 @@ def build_manual_schema(conn):
         created_at   TEXT
     );
     ''')
+    _migrate_manual_overrides(conn)
+
+
+def _migrate_manual_overrides(conn):
+    """Добавляет колонки в manual.overrides, если БД создана старой версией схемы."""
+    cols = {r[1] for r in conn.execute("PRAGMA manual.table_info(overrides)")}
+    for col in ('brand_name', 'delivered_year'):
+        if col not in cols:
+            conn.execute(f'ALTER TABLE manual.overrides ADD COLUMN {col} TEXT')
 
 
 def load_excluded_ids(conn):
@@ -320,6 +333,7 @@ EDITABLE_FIELDS = [
     'developer_name', 'developer_inn', 'developer_rating',
     'contractor_name', 'contractor_inn', 'contractor_rating',
     'deadline', 'dom_class', 'price_per_m2_uzs', 'listing_url',
+    'brand_name', 'delivered_year',
 ]
 
 

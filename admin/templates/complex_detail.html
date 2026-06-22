@@ -19,6 +19,8 @@
     <label>Дедлайн<input type="text" name="deadline" value="{{ row.deadline or '' }}"></label>
     <label>Класс дома<input type="text" name="dom_class" value="{{ row.dom_class or '' }}"></label>
     <label>Цена за м² (сум)<input type="text" name="price_per_m2_uzs" value="{{ row.price_per_m2_uzs or '' }}"></label>
+    <label>Бренд / коммерческое название застройщика<input type="text" name="brand_name" value="{{ row.brand_name or '' }}" placeholder="напр. название бренда, под которым продаётся ЖК"></label>
+    <label>Год сдачи (если сдан)<input type="text" name="delivered_year" value="{{ row.delivered_year or '' }}" placeholder="напр. 2024"></label>
     <label class="wide">Ссылка на коммерческую продажу (domtut / imo.uz / др.)<input type="text" name="listing_url" value="{{ row.listing_url or '' }}" placeholder="https://domtut.uz/... или https://imo.uz/..."></label>
     <div class="wide"><button type="submit" style="padding:6px 14px;border:1px solid #1a1a18;border-radius:6px;background:#1a1a18;color:#fff;cursor:pointer">Сохранить</button></div>
   </form>

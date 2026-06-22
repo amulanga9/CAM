@@ -31,6 +31,7 @@ EDITABLE_FIELDS = [
     'developer_name', 'developer_inn', 'developer_rating',
     'contractor_name', 'contractor_inn', 'contractor_rating',
     'deadline', 'dom_class', 'price_per_m2_uzs', 'listing_url',
+    'brand_name', 'delivered_year',
 ]
 
 app = Flask(__name__)

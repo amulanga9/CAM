@@ -94,10 +94,16 @@ def ensure_complexes_table(conn):
             dom_class         TEXT,
             price_per_m2_uzs  REAL,
             listing_url       TEXT,
+            brand_name        TEXT,
+            delivered_year    TEXT,
             needs_review      INTEGER DEFAULT 0,
             raw_json          TEXT
         )
     ''')
+    cols = {r[1] for r in conn.execute('PRAGMA table_info(complexes)')}
+    for col in ('brand_name', 'delivered_year'):
+        if col not in cols:
+            conn.execute(f'ALTER TABLE complexes ADD COLUMN {col} TEXT')
 
 
 def import_batches(conn, batches, excluded):
