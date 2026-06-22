@@ -119,7 +119,36 @@ def parse_blocks(blocks):
     return floor_max, area_total, accepted, len(blocks)
 
 
+# слова в названии объекта, которые означают "не ЖК" — реконструкция
+# существующего жилого дома (а не новое строительство), госучреждения,
+# инфраструктура и прочее, что не является жилым комплексом на продажу
+EXCLUDE_KEYWORDS = [
+    # реконструкция / капремонт — не новое строительство
+    'реконструкц', 'rekonstruksiya', 'таъмирлаш', 'капитал ремонт', 'kapital ta\'mir',
+    # государственные / бюджетные объекты
+    'давлат', 'давомий', 'государствен', 'hokimiyat', 'хокимият',
+    'mahalla', 'махалла', 'prezident', 'президент',
+    # социальная инфраструктура — не ЖК
+    'мактаб', 'maktab', 'школ', 'богча', 'bog\'cha', 'детский сад',
+    'касалхона', 'kasalxona', 'больниц', 'клиник', 'поликлиник',
+    'спорт комплекс', 'sport majmuasi', 'стадион',
+    # коммерческая/промышленная инфраструктура без жилья
+    'склад', 'ombor', 'ангар', 'гараж', 'garaj', 'азс', 'нефтебаза',
+    'завод', 'zavod', 'фабрика', 'fabrika', 'офис бино', 'business markaz',
+    'мечеть', 'masjid', 'мадраса', 'madrasa', 'кладбищ',
+]
+
+
+def is_excluded(data):
+    name = (data.get('name') or '').lower()
+    org = (data.get('organization_name') or '').lower()
+    text = f'{name} {org}'
+    return any(kw in text for kw in EXCLUDE_KEYWORDS)
+
+
 def is_residential(data):
+    if is_excluded(data):
+        return False
     if data.get('sphere_id') == 57:
         return True
     if int(data.get('apartment_count') or 0) > 0:
