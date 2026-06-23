@@ -110,6 +110,17 @@ def to_int(v):
         return None
 
 
+def migrate_complexes(conn):
+    """Добавляет недавно введённые колонки в существующую complexes,
+    если БД создана старой версией схемы (без полной пересборки из Excel)."""
+    cols = {r[1] for r in conn.execute('PRAGMA table_info(complexes)')}
+    if not cols:
+        return  # таблицы ещё нет — её создаст build_schema/ensure_complexes_table
+    for col in ('brand_name', 'delivered_year'):
+        if col not in cols:
+            conn.execute(f'ALTER TABLE complexes ADD COLUMN {col} TEXT')
+
+
 def build_schema(conn):
     # complexes/developers/contractors пересобираются с нуля при каждом импорте,
     # т.к. их источник — Excel. Ручные данные живут в отдельном файле

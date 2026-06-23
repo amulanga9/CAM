@@ -14,7 +14,7 @@ from pathlib import Path
 
 from flask import Flask, g, redirect, render_template, request, url_for
 
-from import_master import build_manual_schema
+from import_master import build_manual_schema, migrate_complexes
 
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
 MANUAL_DB_PATH = Path(__file__).parent / 'cam_manual.db'
@@ -43,6 +43,7 @@ def get_db():
         g.db.row_factory = sqlite3.Row
         g.db.execute(f"ATTACH DATABASE '{MANUAL_DB_PATH}' AS manual")
         build_manual_schema(g.db)  # на случай если app.py запущен раньше первого import_master.py
+        migrate_complexes(g.db)    # подтягивает новые колонки, если БД старее текущей схемы
     return g.db
 
 
