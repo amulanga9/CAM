@@ -23,12 +23,25 @@ AFFILIATION_GROUPS_PATH = Path(__file__).parent / 'data' / 'affiliation_groups.c
 
 
 def get_affiliation_groups():
-    """Группа N — placeholder labels from the affiliation lookup, for use alongside manually entered holding names."""
+    """Group labels built from shared founder names ('учредитель:...' in методы), not bare группа_id numbers."""
     if not AFFILIATION_GROUPS_PATH.exists():
         return []
+    founders_by_group = {}
     with open(AFFILIATION_GROUPS_PATH, encoding='utf-8') as f:
-        group_ids = {row['группа_id'] for row in csv.DictReader(f)}
-    return [f'Группа {gid}' for gid in group_ids]
+        for row in csv.DictReader(f):
+            gid = row['группа_id']
+            names = founders_by_group.setdefault(gid, set())
+            for part in row['методы'].split(';'):
+                part = part.strip()
+                if part.startswith('учредитель:'):
+                    names.add(part[len('учредитель:'):].strip().title())
+    labels = []
+    for gid, names in founders_by_group.items():
+        if names:
+            labels.append(f"Группа: {', '.join(sorted(names))}")
+        else:
+            labels.append(f'Группа {gid}')
+    return labels
 
 VERDICTS = {
     'delivered': 'Сдан',
