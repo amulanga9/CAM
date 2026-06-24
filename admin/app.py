@@ -238,6 +238,22 @@ def edit_complex(cam_id):
     return redirect(url_for('complex_detail', cam_id=cam_id))
 
 
+@app.route('/complex/<cam_id>/brand_status', methods=['POST'])
+def set_brand_status(cam_id):
+    """Переключает отметку 'бренд не найден' — отдельная категория от статуса сдачи:
+    отвечает на вопрос «есть ли у объекта коммерческое имя/листинг», а не «сдан или нет»."""
+    db = get_db()
+    row = db.execute('SELECT brand_status FROM complexes WHERE cam_id=?', (cam_id,)).fetchone()
+    new_status = None if row and row['brand_status'] == 'not_found' else 'not_found'
+    db.execute('''
+        INSERT INTO manual.overrides (cam_id, brand_status, updated_at) VALUES (?,?,?)
+        ON CONFLICT(cam_id) DO UPDATE SET brand_status=excluded.brand_status, updated_at=excluded.updated_at
+    ''', (cam_id, new_status, datetime.now(timezone.utc).isoformat()))
+    db.execute('UPDATE complexes SET brand_status=? WHERE cam_id=?', (new_status, cam_id))
+    db.commit()
+    return redirect(url_for('complex_detail', cam_id=cam_id))
+
+
 @app.route('/complex/<cam_id>/rebrand', methods=['POST'])
 def rebrand_complex(cam_id):
     form = request.form

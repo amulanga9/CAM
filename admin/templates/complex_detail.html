@@ -45,6 +45,10 @@
 
     <fieldset class="wide" style="border:1px solid #ddd;border-radius:6px;margin:0 0 10px;padding:10px">
       <label>Бренд / коммерческое название застройщика<input type="text" name="brand_name" value="{{ row.brand_name or '' }}" placeholder="напр. название бренда, под которым продаётся ЖК"></label>
+      <button type="submit" formaction="{{ url_for('set_brand_status', cam_id=row.cam_id) }}" formnovalidate
+        style="padding:4px 10px;border:1px solid {{ '#b34' if row.brand_status == 'not_found' else '#888' }};border-radius:6px;background:{{ '#fdeaea' if row.brand_status == 'not_found' else '#fff' }};color:{{ '#b34' if row.brand_status == 'not_found' else '#555' }};cursor:pointer;font-size:0.85em">
+        {{ '✓ Без бренда — снять отметку' if row.brand_status == 'not_found' else 'Без бренда / нет в продаже' }}
+      </button>
       <label>Год сдачи (если сдан)<input type="text" name="delivered_year" value="{{ row.delivered_year or '' }}" placeholder="напр. 2024"></label>
       <label>Холдинг / аффилированная группа<input type="text" name="holding_name" value="{{ row.holding_name or '' }}" list="holdings-list" placeholder="выбери из списка или впиши новый"></label>
       <datalist id="holdings-list">

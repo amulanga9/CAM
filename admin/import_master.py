@@ -119,6 +119,8 @@ def migrate_complexes(conn):
     for col in ('brand_name', 'delivered_year', 'holding_name'):
         if col not in cols:
             conn.execute(f'ALTER TABLE complexes ADD COLUMN {col} TEXT')
+    if 'brand_status' not in cols:
+        conn.execute('ALTER TABLE complexes ADD COLUMN brand_status TEXT')
 
 
 def build_schema(conn):
@@ -156,6 +158,7 @@ def build_schema(conn):
         price_per_m2_uzs  REAL,
         listing_url       TEXT,
         brand_name        TEXT,
+        brand_status      TEXT,
         delivered_year    TEXT,
         holding_name      TEXT,
         needs_review      INTEGER DEFAULT 0,
@@ -230,6 +233,7 @@ def build_manual_schema(conn):
         price_per_m2_uzs  REAL,
         listing_url       TEXT,
         brand_name        TEXT,
+        brand_status      TEXT,
         delivered_year    TEXT,
         holding_name      TEXT,
         updated_at        TEXT
@@ -285,7 +289,7 @@ def _migrate_manual_rebrands(conn):
 def _migrate_manual_overrides(conn):
     """Добавляет колонки в manual.overrides, если БД создана старой версией схемы."""
     cols = {r[1] for r in conn.execute("PRAGMA manual.table_info(overrides)")}
-    for col in ('brand_name', 'delivered_year', 'holding_name'):
+    for col in ('brand_name', 'delivered_year', 'holding_name', 'brand_status'):
         if col not in cols:
             conn.execute(f'ALTER TABLE manual.overrides ADD COLUMN {col} TEXT')
 
@@ -380,7 +384,7 @@ EDITABLE_FIELDS = [
     'developer_name', 'developer_inn', 'developer_rating',
     'contractor_name', 'contractor_inn', 'contractor_rating',
     'deadline', 'dom_class', 'price_per_m2_uzs', 'listing_url',
-    'brand_name', 'delivered_year', 'holding_name',
+    'brand_name', 'brand_status', 'delivered_year', 'holding_name',
 ]
 
 
