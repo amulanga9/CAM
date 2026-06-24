@@ -269,6 +269,15 @@ def build_manual_schema(conn):
     );
     ''')
     _migrate_manual_overrides(conn)
+    _migrate_manual_rebrands(conn)
+
+
+def _migrate_manual_rebrands(conn):
+    """Добавляет колонки в manual.rebrands, если таблица создана старой версией схемы."""
+    cols = {r[1] for r in conn.execute("PRAGMA manual.table_info(rebrands)")}
+    for col in ('rebrand_contractor_name', 'rebrand_contractor_inn'):
+        if col not in cols:
+            conn.execute(f'ALTER TABLE manual.rebrands ADD COLUMN {col} TEXT')
 
 
 def _migrate_manual_overrides(conn):
