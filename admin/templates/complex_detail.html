@@ -2,70 +2,135 @@
 {% block content %}
 <h2>{{ row.cam_id }} — {{ row.project_name or row.address or '' }}</h2>
 
+{% if phases|length > 1 %}
+<div class="card">
+  <h3>Фазы / корпуса этого объекта ({{ phases|length }})</h3>
+  <p style="color:var(--text-dim);font-size:11.5px;margin-top:-4px">
+    Один cam_id встречается на нескольких листах выгрузки — ниже все встреченные строки, не только та, что попала в карточку.
+  </p>
+  <table>
+    <tr><th>Лист</th><th>Статус (исходный)</th><th>Статус (чистый)</th><th>master_status</th><th>target</th><th>Дедлайн</th><th>Факт. сдача</th><th>Просрочка (дн.)</th></tr>
+    {% for p in phases %}
+    <tr>
+      <td>{{ p.source_sheet }}</td>
+      <td>{{ p.case_status_raw or '—' }}</td>
+      <td><span class="badge {{ p.case_status_clean }}">{{ p.case_status_clean }}</span></td>
+      <td>{{ p.master_status if p.master_status is not none else '—' }}</td>
+      <td>{{ p.target if p.target is not none else '—' }}</td>
+      <td>{{ p.deadline or '—' }}</td>
+      <td>{{ p.delivery_date_fact or '—' }}</td>
+      <td>{{ p.days_overdue if p.days_overdue is not none else '—' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
 <div class="card">
   <h3>Карточка объекта (доступно для дозаполнения/исправления)</h3>
-  <form method="post" action="{{ url_for('edit_complex', cam_id=row.cam_id) }}" class="edit-grid">
-    <fieldset class="wide" style="border:1px solid #ddd;border-radius:6px;margin:0 0 10px;padding:10px">
-      <label>Название<input type="text" name="project_name" value="{{ row.project_name or '' }}"></label>
-      <label>Адрес<input type="text" name="address" value="{{ row.address or '' }}"></label>
-      <label>Район<input type="text" name="district_name" value="{{ row.district_name or '' }}"></label>
-      <label>Lat<input type="text" name="lat" value="{{ row.lat or '' }}"></label>
-      <label>Lng<input type="text" name="lng" value="{{ row.lng or '' }}"></label>
-      <button type="submit" name="reset_fields" value="project_name,address,district_name,lat,lng" formnovalidate
-        style="padding:4px 10px;border:1px solid #888;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.85em"
-        onclick="return confirm('Сбросить название/адрес/район/координаты к исходным данным?')">↺ Сбросить блок</button>
-    </fieldset>
+  <form method="post" action="{{ url_for('edit_complex', cam_id=row.cam_id) }}">
 
-    <fieldset class="wide" style="border:1px solid #ddd;border-radius:6px;margin:0 0 10px;padding:10px">
-      <label>Застройщик<input type="text" name="developer_name" value="{{ row.developer_name or '' }}"></label>
-      <label>ИНН застройщика<input type="text" name="developer_inn" value="{{ row.developer_inn or '' }}"></label>
-      <label>Рейтинг застройщика<input type="text" name="developer_rating" value="{{ row.developer_rating or '' }}"></label>
-      <button type="submit" name="reset_fields" value="developer_name,developer_inn,developer_rating" formnovalidate
-        style="padding:4px 10px;border:1px solid #888;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.85em"
-        onclick="return confirm('Сбросить данные застройщика к исходным?')">↺ Сбросить блок</button>
-    </fieldset>
+    <details class="block" open>
+      <summary>
+        <span class="summary-title">Локация</span>
+        <span class="summary-vals">{{ row.project_name or '—' }} · {{ row.address or '—' }} · {{ row.district_name or '—' }}</span>
+      </summary>
+      <div class="block-body edit-grid">
+        <label>Название<input type="text" name="project_name" value="{{ row.project_name or '' }}"></label>
+        <label>Адрес<input type="text" name="address" value="{{ row.address or '' }}"></label>
+        <label>Район<input type="text" name="district_name" value="{{ row.district_name or '' }}"></label>
+        <label>Lat<input type="text" name="lat" value="{{ row.lat or '' }}"></label>
+        <label>Lng<input type="text" name="lng" value="{{ row.lng or '' }}"></label>
+        <div class="wide">
+          <button type="submit" name="reset_fields" value="project_name,address,district_name,lat,lng" formnovalidate
+            onclick="return confirm('Сбросить название/адрес/район/координаты к исходным данным?')">↺ Сбросить блок</button>
+        </div>
+      </div>
+    </details>
 
-    <fieldset class="wide" style="border:1px solid #ddd;border-radius:6px;margin:0 0 10px;padding:10px">
-      <label>Подрядчик<input type="text" name="contractor_name" value="{{ row.contractor_name or '' }}"></label>
-      <label>ИНН подрядчика<input type="text" name="contractor_inn" value="{{ row.contractor_inn or '' }}"></label>
-      <label>Рейтинг подрядчика<input type="text" name="contractor_rating" value="{{ row.contractor_rating or '' }}"></label>
-      <button type="submit" name="reset_fields" value="contractor_name,contractor_inn,contractor_rating" formnovalidate
-        style="padding:4px 10px;border:1px solid #888;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.85em"
-        onclick="return confirm('Сбросить данные подрядчика к исходным?')">↺ Сбросить блок</button>
-    </fieldset>
+    <details class="block" open>
+      <summary>
+        <span class="summary-title">Застройщик</span>
+        <span class="summary-vals">{{ row.developer_name or '—' }}{% if row.developer_inn %} · ИНН {{ row.developer_inn }}{% endif %}</span>
+      </summary>
+      <div class="block-body edit-grid">
+        <label>Застройщик<input type="text" name="developer_name" value="{{ row.developer_name or '' }}"></label>
+        <label>ИНН застройщика<input type="text" name="developer_inn" value="{{ row.developer_inn or '' }}"></label>
+        <label>Рейтинг застройщика<input type="text" name="developer_rating" value="{{ row.developer_rating or '' }}"></label>
+        <div class="wide">
+          <button type="submit" name="reset_fields" value="developer_name,developer_inn,developer_rating" formnovalidate
+            onclick="return confirm('Сбросить данные застройщика к исходным?')">↺ Сбросить блок</button>
+        </div>
+      </div>
+    </details>
 
-    <fieldset class="wide" style="border:1px solid #ddd;border-radius:6px;margin:0 0 10px;padding:10px">
-      <label>Дедлайн<input type="text" name="deadline" value="{{ row.deadline or '' }}"></label>
-      <label>Класс дома<input type="text" name="dom_class" value="{{ row.dom_class or '' }}"></label>
-      <label>Цена за м² (сум)<input type="text" name="price_per_m2_uzs" value="{{ row.price_per_m2_uzs or '' }}"></label>
-      <button type="submit" name="reset_fields" value="deadline,dom_class,price_per_m2_uzs" formnovalidate
-        style="padding:4px 10px;border:1px solid #888;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.85em"
-        onclick="return confirm('Сбросить дедлайн/класс/цену к исходным?')">↺ Сбросить блок</button>
-    </fieldset>
+    <details class="block">
+      <summary>
+        <span class="summary-title">Подрядчик</span>
+        <span class="summary-vals">{{ row.contractor_name or '—' }}{% if row.contractor_inn %} · ИНН {{ row.contractor_inn }}{% endif %}</span>
+      </summary>
+      <div class="block-body edit-grid">
+        <label>Подрядчик<input type="text" name="contractor_name" value="{{ row.contractor_name or '' }}"></label>
+        <label>ИНН подрядчика<input type="text" name="contractor_inn" value="{{ row.contractor_inn or '' }}"></label>
+        <label>Рейтинг подрядчика<input type="text" name="contractor_rating" value="{{ row.contractor_rating or '' }}"></label>
+        <div class="wide">
+          <button type="submit" name="reset_fields" value="contractor_name,contractor_inn,contractor_rating" formnovalidate
+            onclick="return confirm('Сбросить данные подрядчика к исходным?')">↺ Сбросить блок</button>
+        </div>
+      </div>
+    </details>
 
-    <fieldset class="wide" style="border:1px solid #ddd;border-radius:6px;margin:0 0 10px;padding:10px">
-      <label>Бренд / коммерческое название застройщика<input type="text" name="brand_name" value="{{ row.brand_name or '' }}" placeholder="напр. название бренда, под которым продаётся ЖК"></label>
-      <button type="submit" formaction="{{ url_for('set_brand_status', cam_id=row.cam_id) }}" formnovalidate
-        style="padding:4px 10px;border:1px solid {{ '#b34' if row.brand_status == 'not_found' else '#888' }};border-radius:6px;background:{{ '#fdeaea' if row.brand_status == 'not_found' else '#fff' }};color:{{ '#b34' if row.brand_status == 'not_found' else '#555' }};cursor:pointer;font-size:0.85em">
-        {{ '✓ Без бренда — снять отметку' if row.brand_status == 'not_found' else 'Без бренда / нет в продаже' }}
-      </button>
-      <label>Год сдачи (если сдан)<input type="text" name="delivered_year" value="{{ row.delivered_year or '' }}" placeholder="напр. 2024"></label>
-      <label>Холдинг / аффилированная группа<input type="text" name="holding_name" value="{{ row.holding_name or '' }}" list="holdings-list" placeholder="выбери из списка или впиши новый"></label>
-      <datalist id="holdings-list">
-        {% for h in holdings %}<option value="{{ h }}">{% endfor %}
-      </datalist>
-      <label class="wide">Ссылка на коммерческую продажу (domtut / imo.uz / др.)<input type="text" name="listing_url" value="{{ row.listing_url or '' }}" placeholder="https://domtut.uz/... или https://imo.uz/..."></label>
-      <button type="submit" name="reset_fields" value="brand_name,delivered_year,holding_name,listing_url" formnovalidate
-        style="padding:4px 10px;border:1px solid #888;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.85em"
-        onclick="return confirm('Сбросить бренд/год сдачи/холдинг/ссылку (это чисто ручные поля — очистятся, не восстановятся)?')">↺ Сбросить блок</button>
-    </fieldset>
+    <details class="block" open>
+      <summary>
+        <span class="summary-title">Сроки / класс / цена</span>
+        <span class="summary-vals">{{ row.deadline or '—' }} · {{ row.dom_class or '—' }} · {{ row.price_per_m2_uzs or '—' }}</span>
+      </summary>
+      <div class="block-body edit-grid">
+        <label>Дедлайн<input type="text" name="deadline" value="{{ row.deadline or '' }}"></label>
+        <label>Класс дома<input type="text" name="dom_class" value="{{ row.dom_class or '' }}"></label>
+        <label>Цена за м² (сум)<input type="text" name="price_per_m2_uzs" value="{{ row.price_per_m2_uzs or '' }}"></label>
+        <div class="wide">
+          <button type="submit" name="reset_fields" value="deadline,dom_class,price_per_m2_uzs" formnovalidate
+            onclick="return confirm('Сбросить дедлайн/класс/цену к исходным?')">↺ Сбросить блок</button>
+        </div>
+      </div>
+    </details>
 
-    <div class="wide"><button type="submit" style="padding:6px 14px;border:1px solid #1a1a18;border-radius:6px;background:#1a1a18;color:#fff;cursor:pointer">Сохранить</button></div>
+    <details class="block">
+      <summary>
+        <span class="summary-title">Бренд / продажа</span>
+        <span class="summary-vals">
+          {% if row.brand_status == 'not_found' %}без бренда{% else %}{{ row.brand_name or '—' }}{% endif %}
+          {% if row.holding_name %} · {{ row.holding_name }}{% endif %}
+        </span>
+      </summary>
+      <div class="block-body edit-grid">
+        <label>Бренд / коммерческое название застройщика<input type="text" name="brand_name" value="{{ row.brand_name or '' }}" placeholder="напр. название бренда, под которым продаётся ЖК"></label>
+        <div>
+          <button type="submit" formaction="{{ url_for('set_brand_status', cam_id=row.cam_id) }}" formnovalidate
+            style="border-color:{{ 'var(--bad)' if row.brand_status == 'not_found' else 'var(--border-hi)' }};color:{{ 'var(--bad)' if row.brand_status == 'not_found' else 'var(--text)' }}">
+            {{ '✓ Без бренда — снять отметку' if row.brand_status == 'not_found' else 'Без бренда / нет в продаже' }}
+          </button>
+        </div>
+        <label>Год сдачи (если сдан)<input type="text" name="delivered_year" value="{{ row.delivered_year or '' }}" placeholder="напр. 2024"></label>
+        <label>Холдинг / аффилированная группа<input type="text" name="holding_name" value="{{ row.holding_name or '' }}" list="holdings-list" placeholder="выбери из списка или впиши новый"></label>
+        <datalist id="holdings-list">
+          {% for h in holdings %}<option value="{{ h }}">{% endfor %}
+        </datalist>
+        <label class="wide">Ссылка на коммерческую продажу (domtut / imo.uz / др.)<input type="text" name="listing_url" value="{{ row.listing_url or '' }}" placeholder="https://domtut.uz/... или https://imo.uz/..."></label>
+        <div class="wide">
+          <button type="submit" name="reset_fields" value="brand_name,delivered_year,holding_name,listing_url" formnovalidate
+            onclick="return confirm('Сбросить бренд/год сдачи/холдинг/ссылку (это чисто ручные поля — очистятся, не восстановятся)?')">↺ Сбросить блок</button>
+        </div>
+      </div>
+    </details>
+
+    <div style="margin-top:14px"><button type="submit" class="btn-save">Сохранить</button></div>
   </form>
   {% if row.listing_url %}
   <p style="margin-top:10px"><a href="{{ row.listing_url }}" target="_blank" rel="noopener">Открыть объявление о продаже →</a></p>
   {% endif %}
-  <p style="color:#888;margin-top:10px">
+  <p style="color:var(--text-dim);margin-top:10px">
     Дней просрочки: {{ row.days_overdue or '—' }} |
     Статус (исходный): {{ row.case_status_raw or '—' }} → <span class="badge {{ row.case_status_clean }}">{{ row.case_status_clean }}</span> |
     Источник листа: {{ row.source_sheet }}
@@ -74,9 +139,15 @@
 
 <style>
 .edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
-.edit-grid label{display:flex;flex-direction:column;font-size:12px;color:#888;gap:4px}
-.edit-grid label.wide{grid-column:1 / -1}
-.edit-grid input,.edit-grid select,.edit-grid textarea{padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;color:#1a1a18;font-family:inherit}
+.edit-grid label{display:flex;flex-direction:column;font-size:12px;color:var(--text-dim);gap:4px}
+.edit-grid label.wide,.edit-grid div.wide{grid-column:1 / -1}
+.edit-grid input,.edit-grid select,.edit-grid textarea{padding:6px 10px;border:1px solid var(--border-hi);border-radius:5px;font-size:12.5px;color:var(--text-bright);background:var(--bg);font-family:inherit}
+details.block .block-body button{border:1px solid var(--border-hi);background:var(--bg);color:var(--text);
+  border-radius:5px;padding:5px 10px;font-size:11.5px;cursor:pointer;font-family:inherit}
+details.block .block-body button:hover{border-color:var(--accent);color:var(--accent)}
+.btn-save{padding:7px 16px;border:1px solid var(--accent-dim);border-radius:5px;background:var(--accent);color:#06140f;
+  font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:.02em}
+.btn-save:hover{background:var(--accent2);border-color:var(--accent2)}
 </style>
 
 <div class="card">
@@ -89,7 +160,7 @@
   </form>
   <form method="post" action="{{ url_for('exclude_complex', cam_id=row.cam_id) }}" style="margin-top:10px" onsubmit="return confirm('Это не ЖК? Объект уйдёт из очереди проверки (статус «excluded»), но останется в базе и будет находиться по застройщику/ИНН.');">
     <input type="hidden" name="reason" value="не ЖК / мусорный объект">
-    <button type="submit" style="color:#d63b3b;border-color:#d63b3b;border:1px solid #d63b3b;background:#fff;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">Не ЖК — исключить из проверки</button>
+    <button type="submit" style="color:var(--bad);border-color:var(--bad);border:1px solid var(--bad);background:transparent;border-radius:5px;padding:5px 10px;font-size:12px;cursor:pointer">Не ЖК — исключить из проверки</button>
   </form>
 </div>
 
@@ -105,11 +176,14 @@
 </div>
 {% endif %}
 
-<div class="card">
-  <h3>Объект ребрендирован / перезапущен</h3>
-  <p style="color:#888;font-size:12px">Если проект продолжает строиться под новым названием/застройщиком при том же юр. адресе — заполни, что знаешь. CAM ID новой карточки указывать необязательно (если не знаешь — оставь пустым, сматчим позже вручную или автоматически).</p>
+<details class="block">
+  <summary><span class="summary-title">Объект ребрендирован / перезапущен</span>
+    <span class="summary-vals">{% if rebrands %}{{ rebrands|length }} запись(и) в истории{% else %}заполнить, если знаешь{% endif %}</span>
+  </summary>
+  <div class="block-body">
+  <p style="color:var(--text-dim);font-size:12px">Если проект продолжает строиться под новым названием/застройщиком при том же юр. адресе — заполни, что знаешь. CAM ID новой карточки указывать необязательно (если не знаешь — оставь пустым, сматчим позже вручную или автоматически).</p>
   {% if rebrand_error %}
-  <p style="color:#d63b3b;font-size:13px">Ошибка сохранения: {{ rebrand_error }}. Поля не очищены, можно поправить и отправить снова.</p>
+  <p style="color:var(--bad);font-size:13px">Ошибка сохранения: {{ rebrand_error }}. Поля не очищены, можно поправить и отправить снова.</p>
   {% endif %}
   <form method="post" action="{{ url_for('rebrand_complex', cam_id=row.cam_id) }}" class="edit-grid">
     <label>Новое коммерческое название<input type="text" name="rebrand_name" value="{{ rebrand_form.get('rebrand_name', '') }}" placeholder="напр. ЖК «Soy Bo'yi»"></label>
@@ -136,14 +210,11 @@
     <label>Дата ребренда<input type="date" name="transition_date" value="{{ rebrand_form.get('transition_date', '') }}"></label>
     <label>CAM ID новой карточки (если знаешь)<input type="text" name="matched_cam_id" value="{{ rebrand_form.get('matched_cam_id', '') }}" placeholder="напр. OBJ1234 — необязательно"></label>
     <label class="wide">История ЖК<textarea name="reason" rows="4" placeholder="сюда скидывай всё: что нашла, ссылки, цитаты, даты — свободным текстом">{{ rebrand_form.get('reason', '') }}</textarea></label>
-    <div class="wide"><button type="submit" style="padding:6px 14px;border:1px solid #1a1a18;border-radius:6px;background:#1a1a18;color:#fff;cursor:pointer">Ребрендирован — добавить в список</button></div>
+    <div class="wide"><button type="submit" class="btn-save">Ребрендирован — добавить в список</button></div>
   </form>
-</div>
 
-{% if rebrands %}
-<div class="card">
-  <h3>История ребрендов</h3>
-  <table>
+  {% if rebrands %}
+  <table style="margin-top:12px">
     <tr><th>Когда</th><th>Новое название</th><th>Новый застройщик</th><th>Новый подрядчик</th><th>Старый застройщик остался</th><th>Дата ребренда</th><th>CAM ID (если сматчен)</th><th>История ЖК</th></tr>
     {% for r in rebrands %}
     <tr>
@@ -158,15 +229,18 @@
     </tr>
     {% endfor %}
   </table>
-</div>
-{% endif %}
+  {% endif %}
+  </div>
+</details>
 
-<div class="card">
-  <h3>Все исходные поля</h3>
+<details class="block">
+  <summary><span class="summary-title">Все исходные поля</span><span class="summary-vals">{{ raw|length }} полей из выгрузки</span></summary>
+  <div class="block-body">
   <table>
     {% for k, v in raw.items() %}
-    <tr><td style="width:240px;color:#888">{{ k }}</td><td>{{ v }}</td></tr>
+    <tr><td style="width:240px;color:var(--text-dim)">{{ k }}</td><td>{{ v }}</td></tr>
     {% endfor %}
   </table>
-</div>
+  </div>
+</details>
 {% endblock %}

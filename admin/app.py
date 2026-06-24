@@ -302,13 +302,16 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None):
     rebrands = db.execute(
         'SELECT * FROM manual.rebrands WHERE cam_id=? ORDER BY created_at DESC', (cam_id,)
     ).fetchall()
+    phases = db.execute(
+        'SELECT * FROM phases WHERE cam_id=? ORDER BY id', (cam_id,)
+    ).fetchall()
     holdings = [r[0] for r in db.execute(
         "SELECT DISTINCT holding_name FROM complexes WHERE holding_name IS NOT NULL AND holding_name != '' ORDER BY holding_name"
     ).fetchall()]
     holdings = sorted(set(holdings) | set(get_affiliation_groups()))
     return render_template(
         'complex_detail.html', row=row, raw=raw, history=history,
-        verdicts=VERDICTS, rebrands=rebrands, holdings=holdings,
+        verdicts=VERDICTS, rebrands=rebrands, phases=phases, holdings=holdings,
         rebrand_form=rebrand_form or {}, rebrand_error=rebrand_error,
     )
 

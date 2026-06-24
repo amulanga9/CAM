@@ -121,6 +121,22 @@ def migrate_complexes(conn):
             conn.execute(f'ALTER TABLE complexes ADD COLUMN {col} TEXT')
     if 'brand_status' not in cols:
         conn.execute('ALTER TABLE complexes ADD COLUMN brand_status TEXT')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS phases (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            cam_id            TEXT,
+            source_sheet      TEXT,
+            case_status_raw   TEXT,
+            case_status_clean TEXT,
+            master_status     TEXT,
+            target            INTEGER,
+            created_at        TEXT,
+            deadline          TEXT,
+            delivery_date_fact TEXT,
+            delay_days_fact   TEXT,
+            days_overdue      INTEGER
+        )
+    ''')
 
 
 def build_schema(conn):
@@ -131,6 +147,7 @@ def build_schema(conn):
     DROP TABLE IF EXISTS complexes;
     DROP TABLE IF EXISTS developers;
     DROP TABLE IF EXISTS contractors;
+    DROP TABLE IF EXISTS phases;
 
     CREATE TABLE complexes (
         cam_id            TEXT PRIMARY KEY,
@@ -163,6 +180,26 @@ def build_schema(conn):
         holding_name      TEXT,
         needs_review      INTEGER DEFAULT 0,
         raw_json          TEXT
+    );
+
+    -- одна строка ИЗ ЛЮБОГО листа на каждую встреченную запись объекта.
+    -- для одиночных объектов это всегда 1 строка (совпадает с complexes);
+    -- для group-ID (несколько фаз/корпусов под одним cam_id) — несколько,
+    -- чтобы при пересборке complexes (берёт только первую/худшую) не терялась
+    -- видимость на остальные фазы.
+    CREATE TABLE phases (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        cam_id            TEXT,
+        source_sheet      TEXT,
+        case_status_raw   TEXT,
+        case_status_clean TEXT,
+        master_status     TEXT,
+        target            INTEGER,
+        created_at        TEXT,
+        deadline          TEXT,
+        delivery_date_fact TEXT,
+        delay_days_fact   TEXT,
+        days_overdue      INTEGER
     );
 
     CREATE TABLE developers (
@@ -319,9 +356,6 @@ def import_objects(conn, wb):
             if not cam_id:
                 continue
             cam_id = str(cam_id)
-            if cam_id in seen:
-                continue  # одна и та же запись может встречаться на нескольких листах
-            seen.add(cam_id)
 
             case_status_raw = get_field(row, header_idx, 'case_status')
             cs_clean = clean_status(case_status_raw)
@@ -335,6 +369,31 @@ def import_objects(conn, wb):
                 needs_review = 0
 
             raw_dict = {h: row[i] for h, i in header_idx.items()}
+
+            # фиксируем каждую встреченную строку как "фазу" — для одиночных
+            # объектов это единственная строка, для group-ID (несколько
+            # корпусов/очередей под одним cam_id) видно все, даже те, что
+            # complexes ниже не возьмёт из-за дедупликации по cam_id
+            cur.execute('''
+                INSERT INTO phases (
+                    cam_id, source_sheet, case_status_raw, case_status_clean,
+                    master_status, target, created_at, deadline,
+                    delivery_date_fact, delay_days_fact, days_overdue
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            ''', (
+                cam_id, sheet_name, str(case_status_raw or ''), cs_clean,
+                get_field(row, header_idx, 'master_status'),
+                to_int(get_field(row, header_idx, 'target')),
+                str(get_field(row, header_idx, 'created_at') or ''),
+                str(get_field(row, header_idx, 'deadline') or ''),
+                str(raw_dict.get('delivery_date_fact') or ''),
+                str(raw_dict.get('delay_days_fact') or ''),
+                to_int(get_field(row, header_idx, 'days_overdue')),
+            ))
+
+            if cam_id in seen:
+                continue  # одна и та же запись может встречаться на нескольких листах — для complexes берём первую
+            seen.add(cam_id)
 
             cur.execute('''
                 INSERT OR IGNORE INTO complexes (
