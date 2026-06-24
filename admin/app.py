@@ -181,19 +181,30 @@ def edit_complex(cam_id):
     return redirect(url_for('complex_detail', cam_id=cam_id))
 
 
-@app.route('/complex/<cam_id>/link', methods=['POST'])
-def link_cam_id(cam_id):
-    new_cam_id = request.form.get('new_cam_id', '').strip()
+@app.route('/complex/<cam_id>/rebrand', methods=['POST'])
+def rebrand_complex(cam_id):
+    rebrand_name = request.form.get('rebrand_name', '').strip()
+    rebrand_developer_name = request.form.get('rebrand_developer_name', '').strip()
+    rebrand_developer_inn = request.form.get('rebrand_developer_inn', '').strip()
+    old_developer_remained = request.form.get('old_developer_remained', '').strip()
+    old_contractor_remained = request.form.get('old_contractor_remained', '').strip()
     transition_date = request.form.get('transition_date', '').strip()
-    reason = request.form.get('link_reason', '').strip()
-    if not new_cam_id:
-        return redirect(url_for('complex_detail', cam_id=cam_id))
+    reason = request.form.get('reason', '').strip()
+    matched_cam_id = request.form.get('matched_cam_id', '').strip()
+
     db = get_db()
-    db.execute(
-        'INSERT INTO manual.cam_id_links (old_cam_id, new_cam_id, transition_date, reason, created_at) '
-        'VALUES (?,?,?,?,?)',
-        (cam_id, new_cam_id, transition_date or None, reason or None, datetime.now(timezone.utc).isoformat()),
-    )
+    db.execute('''
+        INSERT INTO manual.rebrands (
+            cam_id, rebrand_name, rebrand_developer_name, rebrand_developer_inn,
+            old_developer_remained, old_contractor_remained, transition_date, reason,
+            matched_cam_id, created_at
+        ) VALUES (?,?,?,?,?,?,?,?,?,?)
+    ''', (
+        cam_id, rebrand_name or None, rebrand_developer_name or None, rebrand_developer_inn or None,
+        old_developer_remained or None, old_contractor_remained or None,
+        transition_date or None, reason or None, matched_cam_id or None,
+        datetime.now(timezone.utc).isoformat(),
+    ))
     db.commit()
     return redirect(url_for('complex_detail', cam_id=cam_id))
 
@@ -208,15 +219,12 @@ def complex_detail(cam_id):
     history = db.execute(
         'SELECT * FROM manual.reviews WHERE cam_id=? ORDER BY reviewed_at DESC', (cam_id,)
     ).fetchall()
-    links_out = db.execute(
-        'SELECT * FROM manual.cam_id_links WHERE old_cam_id=? ORDER BY created_at DESC', (cam_id,)
-    ).fetchall()
-    links_in = db.execute(
-        'SELECT * FROM manual.cam_id_links WHERE new_cam_id=? ORDER BY created_at DESC', (cam_id,)
+    rebrands = db.execute(
+        'SELECT * FROM manual.rebrands WHERE cam_id=? ORDER BY created_at DESC', (cam_id,)
     ).fetchall()
     return render_template(
         'complex_detail.html', row=row, raw=raw, history=history,
-        verdicts=VERDICTS, links_out=links_out, links_in=links_in,
+        verdicts=VERDICTS, rebrands=rebrands,
     )
 
 
