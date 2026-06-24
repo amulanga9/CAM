@@ -74,6 +74,8 @@
     <label>Новое коммерческое название<input type="text" name="rebrand_name" placeholder="напр. ЖК «Soy Bo'yi»"></label>
     <label>Новый застройщик<input type="text" name="rebrand_developer_name"></label>
     <label>ИНН нового застройщика<input type="text" name="rebrand_developer_inn"></label>
+    <label>Новый подрядчик<input type="text" name="rebrand_contractor_name"></label>
+    <label>ИНН нового подрядчика<input type="text" name="rebrand_contractor_inn"></label>
     <label>Старый застройщик остался?
       <select name="old_developer_remained">
         <option value="">—</option>
@@ -101,12 +103,13 @@
 <div class="card">
   <h3>История ребрендов</h3>
   <table>
-    <tr><th>Когда</th><th>Новое название</th><th>Новый застройщик</th><th>Старый застройщик остался</th><th>Дата ребренда</th><th>CAM ID (если сматчен)</th><th>Причина</th></tr>
+    <tr><th>Когда</th><th>Новое название</th><th>Новый застройщик</th><th>Новый подрядчик</th><th>Старый застройщик остался</th><th>Дата ребренда</th><th>CAM ID (если сматчен)</th><th>Причина</th></tr>
     {% for r in rebrands %}
     <tr>
       <td>{{ r.created_at }}</td>
       <td>{{ r.rebrand_name or '' }}</td>
-      <td>{{ r.rebrand_developer_name or '' }}</td>
+      <td>{{ r.rebrand_developer_name or '' }}{% if r.rebrand_developer_inn %} ({{ r.rebrand_developer_inn }}){% endif %}</td>
+      <td>{{ r.rebrand_contractor_name or '' }}{% if r.rebrand_contractor_inn %} ({{ r.rebrand_contractor_inn }}){% endif %}</td>
       <td>{{ r.old_developer_remained or '—' }}</td>
       <td>{{ r.transition_date or '—' }}</td>
       <td>{% if r.matched_cam_id %}<a href="{{ url_for('complex_detail', cam_id=r.matched_cam_id) }}">{{ r.matched_cam_id }}</a>{% else %}—{% endif %}</td>

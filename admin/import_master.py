@@ -258,6 +258,8 @@ def build_manual_schema(conn):
         rebrand_name            TEXT,
         rebrand_developer_name  TEXT,
         rebrand_developer_inn   TEXT,
+        rebrand_contractor_name TEXT,
+        rebrand_contractor_inn  TEXT,
         old_developer_remained  TEXT,
         old_contractor_remained TEXT,
         transition_date         TEXT,

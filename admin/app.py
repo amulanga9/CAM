@@ -186,6 +186,8 @@ def rebrand_complex(cam_id):
     rebrand_name = request.form.get('rebrand_name', '').strip()
     rebrand_developer_name = request.form.get('rebrand_developer_name', '').strip()
     rebrand_developer_inn = request.form.get('rebrand_developer_inn', '').strip()
+    rebrand_contractor_name = request.form.get('rebrand_contractor_name', '').strip()
+    rebrand_contractor_inn = request.form.get('rebrand_contractor_inn', '').strip()
     old_developer_remained = request.form.get('old_developer_remained', '').strip()
     old_contractor_remained = request.form.get('old_contractor_remained', '').strip()
     transition_date = request.form.get('transition_date', '').strip()
@@ -196,11 +198,13 @@ def rebrand_complex(cam_id):
     db.execute('''
         INSERT INTO manual.rebrands (
             cam_id, rebrand_name, rebrand_developer_name, rebrand_developer_inn,
+            rebrand_contractor_name, rebrand_contractor_inn,
             old_developer_remained, old_contractor_remained, transition_date, reason,
             matched_cam_id, created_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?)
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
     ''', (
         cam_id, rebrand_name or None, rebrand_developer_name or None, rebrand_developer_inn or None,
+        rebrand_contractor_name or None, rebrand_contractor_inn or None,
         old_developer_remained or None, old_contractor_remained or None,
         transition_date or None, reason or None, matched_cam_id or None,
         datetime.now(timezone.utc).isoformat(),
