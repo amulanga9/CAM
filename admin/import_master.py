@@ -245,6 +245,19 @@ def build_manual_schema(conn):
         note         TEXT,
         created_at   TEXT
     );
+
+    -- связь "объект перешёл в другой CAM ID" (ребрендинг/перезапуск проекта
+    -- новым застройщиком при том же юр. адресе/разрешении). Хранится в обе
+    -- стороны через old_cam_id/new_cam_id, карточки обоих объектов показывают
+    -- историю перехода.
+    CREATE TABLE IF NOT EXISTS manual.cam_id_links (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        old_cam_id      TEXT NOT NULL,
+        new_cam_id      TEXT NOT NULL,
+        transition_date TEXT,
+        reason          TEXT,
+        created_at      TEXT
+    );
     ''')
     _migrate_manual_overrides(conn)
 

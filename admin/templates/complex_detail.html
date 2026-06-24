@@ -68,6 +68,42 @@
 {% endif %}
 
 <div class="card">
+  <h3>Объект перешёл в другой CAM ID</h3>
+  <p style="color:#888;font-size:12px">Если проект был перезапущен/переброшен под другим застройщиком или брендом (другая карточка), отметьте переход здесь — он сохранится навсегда и будет виден на карточках обоих объектов.</p>
+  <form method="post" action="{{ url_for('link_cam_id', cam_id=row.cam_id) }}" class="edit-grid">
+    <label>Новый CAM ID<input type="text" name="new_cam_id" placeholder="напр. OBJ1234 или GASN-5678" required></label>
+    <label>Дата перехода<input type="date" name="transition_date"></label>
+    <label class="wide">Причина / комментарий<input type="text" name="link_reason" placeholder="напр. перезапущен новым застройщиком под брендом «Soy Bo'yi»"></label>
+    <div class="wide"><button type="submit" style="padding:6px 14px;border:1px solid #1a1a18;border-radius:6px;background:#1a1a18;color:#fff;cursor:pointer">Сохранить переход</button></div>
+  </form>
+</div>
+
+{% if links_out or links_in %}
+<div class="card">
+  <h3>История проекта</h3>
+  <table>
+    <tr><th>Когда</th><th>Переход</th><th>Дата перехода</th><th>Причина</th></tr>
+    {% for l in links_out %}
+    <tr>
+      <td>{{ l.created_at }}</td>
+      <td>{{ row.cam_id }} → <a href="{{ url_for('complex_detail', cam_id=l.new_cam_id) }}">{{ l.new_cam_id }}</a></td>
+      <td>{{ l.transition_date or '—' }}</td>
+      <td>{{ l.reason or '' }}</td>
+    </tr>
+    {% endfor %}
+    {% for l in links_in %}
+    <tr>
+      <td>{{ l.created_at }}</td>
+      <td><a href="{{ url_for('complex_detail', cam_id=l.old_cam_id) }}">{{ l.old_cam_id }}</a> → {{ row.cam_id }}</td>
+      <td>{{ l.transition_date or '—' }}</td>
+      <td>{{ l.reason or '' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
   <h3>Все исходные поля</h3>
   <table>
     {% for k, v in raw.items() %}

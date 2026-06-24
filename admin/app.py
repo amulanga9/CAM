@@ -181,6 +181,23 @@ def edit_complex(cam_id):
     return redirect(url_for('complex_detail', cam_id=cam_id))
 
 
+@app.route('/complex/<cam_id>/link', methods=['POST'])
+def link_cam_id(cam_id):
+    new_cam_id = request.form.get('new_cam_id', '').strip()
+    transition_date = request.form.get('transition_date', '').strip()
+    reason = request.form.get('link_reason', '').strip()
+    if not new_cam_id:
+        return redirect(url_for('complex_detail', cam_id=cam_id))
+    db = get_db()
+    db.execute(
+        'INSERT INTO manual.cam_id_links (old_cam_id, new_cam_id, transition_date, reason, created_at) '
+        'VALUES (?,?,?,?,?)',
+        (cam_id, new_cam_id, transition_date or None, reason or None, datetime.now(timezone.utc).isoformat()),
+    )
+    db.commit()
+    return redirect(url_for('complex_detail', cam_id=cam_id))
+
+
 @app.route('/complex/<cam_id>')
 def complex_detail(cam_id):
     db = get_db()
@@ -191,7 +208,16 @@ def complex_detail(cam_id):
     history = db.execute(
         'SELECT * FROM manual.reviews WHERE cam_id=? ORDER BY reviewed_at DESC', (cam_id,)
     ).fetchall()
-    return render_template('complex_detail.html', row=row, raw=raw, history=history, verdicts=VERDICTS)
+    links_out = db.execute(
+        'SELECT * FROM manual.cam_id_links WHERE old_cam_id=? ORDER BY created_at DESC', (cam_id,)
+    ).fetchall()
+    links_in = db.execute(
+        'SELECT * FROM manual.cam_id_links WHERE new_cam_id=? ORDER BY created_at DESC', (cam_id,)
+    ).fetchall()
+    return render_template(
+        'complex_detail.html', row=row, raw=raw, history=history,
+        verdicts=VERDICTS, links_out=links_out, links_in=links_in,
+    )
 
 
 @app.route('/all')
