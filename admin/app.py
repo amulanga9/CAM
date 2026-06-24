@@ -15,7 +15,7 @@ from pathlib import Path
 
 from flask import Flask, g, redirect, render_template, request, url_for
 
-from import_master import build_manual_schema, migrate_complexes
+from import_master import FIELD_ALIASES, build_manual_schema, migrate_complexes, to_float
 
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
 MANUAL_DB_PATH = Path(__file__).parent / 'cam_manual.db'
@@ -58,6 +58,18 @@ EDITABLE_FIELDS = [
     'deadline', 'dom_class', 'price_per_m2_uzs', 'listing_url',
     'brand_name', 'delivered_year', 'holding_name',
 ]
+
+FLOAT_FIELDS = {'lat', 'lng', 'price_per_m2_uzs'}
+
+
+def original_value(raw_dict, field):
+    """Значение поля из исходной выгрузки (до ручных правок), или None для чисто ручных полей."""
+    for alias in FIELD_ALIASES.get(field, ()):
+        v = raw_dict.get(alias)
+        if v not in (None, ''):
+            return to_float(v) if field in FLOAT_FIELDS else str(v)
+    return None
+
 
 app = Flask(__name__)
 
@@ -189,6 +201,21 @@ def new_complex():
 @app.route('/complex/<cam_id>/edit', methods=['POST'])
 def edit_complex(cam_id):
     db = get_db()
+
+    reset_fields = [f for f in request.form.get('reset_fields', '').split(',') if f in EDITABLE_FIELDS]
+    if reset_fields:
+        null_cols = ', '.join(f'{f}=NULL' for f in reset_fields)
+        db.execute(f'UPDATE manual.overrides SET {null_cols} WHERE cam_id=?', (cam_id,))
+
+        row = db.execute('SELECT raw_json FROM complexes WHERE cam_id=?', (cam_id,)).fetchone()
+        raw_dict = json.loads(row['raw_json']) if row and row['raw_json'] else {}
+        restored = {f: original_value(raw_dict, f) for f in reset_fields}
+        assignment = ', '.join(f'{f}=?' for f in reset_fields)
+        db.execute(f'UPDATE complexes SET {assignment} WHERE cam_id=?', [restored[f] for f in reset_fields] + [cam_id])
+
+        db.commit()
+        return redirect(url_for('complex_detail', cam_id=cam_id))
+
     values = {f: request.form.get(f, '').strip() for f in EDITABLE_FIELDS}
     values = {f: (v if v != '' else None) for f, v in values.items()}
 

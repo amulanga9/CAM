@@ -5,27 +5,57 @@
 <div class="card">
   <h3>Карточка объекта (доступно для дозаполнения/исправления)</h3>
   <form method="post" action="{{ url_for('edit_complex', cam_id=row.cam_id) }}" class="edit-grid">
-    <label>Название<input type="text" name="project_name" value="{{ row.project_name or '' }}"></label>
-    <label>Адрес<input type="text" name="address" value="{{ row.address or '' }}"></label>
-    <label>Район<input type="text" name="district_name" value="{{ row.district_name or '' }}"></label>
-    <label>Lat<input type="text" name="lat" value="{{ row.lat or '' }}"></label>
-    <label>Lng<input type="text" name="lng" value="{{ row.lng or '' }}"></label>
-    <label>Застройщик<input type="text" name="developer_name" value="{{ row.developer_name or '' }}"></label>
-    <label>ИНН застройщика<input type="text" name="developer_inn" value="{{ row.developer_inn or '' }}"></label>
-    <label>Рейтинг застройщика<input type="text" name="developer_rating" value="{{ row.developer_rating or '' }}"></label>
-    <label>Подрядчик<input type="text" name="contractor_name" value="{{ row.contractor_name or '' }}"></label>
-    <label>ИНН подрядчика<input type="text" name="contractor_inn" value="{{ row.contractor_inn or '' }}"></label>
-    <label>Рейтинг подрядчика<input type="text" name="contractor_rating" value="{{ row.contractor_rating or '' }}"></label>
-    <label>Дедлайн<input type="text" name="deadline" value="{{ row.deadline or '' }}"></label>
-    <label>Класс дома<input type="text" name="dom_class" value="{{ row.dom_class or '' }}"></label>
-    <label>Цена за м² (сум)<input type="text" name="price_per_m2_uzs" value="{{ row.price_per_m2_uzs or '' }}"></label>
-    <label>Бренд / коммерческое название застройщика<input type="text" name="brand_name" value="{{ row.brand_name or '' }}" placeholder="напр. название бренда, под которым продаётся ЖК"></label>
-    <label>Год сдачи (если сдан)<input type="text" name="delivered_year" value="{{ row.delivered_year or '' }}" placeholder="напр. 2024"></label>
-    <label>Холдинг / аффилированная группа<input type="text" name="holding_name" value="{{ row.holding_name or '' }}" list="holdings-list" placeholder="выбери из списка или впиши новый"></label>
-    <datalist id="holdings-list">
-      {% for h in holdings %}<option value="{{ h }}">{% endfor %}
-    </datalist>
-    <label class="wide">Ссылка на коммерческую продажу (domtut / imo.uz / др.)<input type="text" name="listing_url" value="{{ row.listing_url or '' }}" placeholder="https://domtut.uz/... или https://imo.uz/..."></label>
+    <fieldset class="wide" style="border:1px solid #ddd;border-radius:6px;margin:0 0 10px;padding:10px">
+      <label>Название<input type="text" name="project_name" value="{{ row.project_name or '' }}"></label>
+      <label>Адрес<input type="text" name="address" value="{{ row.address or '' }}"></label>
+      <label>Район<input type="text" name="district_name" value="{{ row.district_name or '' }}"></label>
+      <label>Lat<input type="text" name="lat" value="{{ row.lat or '' }}"></label>
+      <label>Lng<input type="text" name="lng" value="{{ row.lng or '' }}"></label>
+      <button type="submit" name="reset_fields" value="project_name,address,district_name,lat,lng" formnovalidate
+        style="padding:4px 10px;border:1px solid #888;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.85em"
+        onclick="return confirm('Сбросить название/адрес/район/координаты к исходным данным?')">↺ Сбросить блок</button>
+    </fieldset>
+
+    <fieldset class="wide" style="border:1px solid #ddd;border-radius:6px;margin:0 0 10px;padding:10px">
+      <label>Застройщик<input type="text" name="developer_name" value="{{ row.developer_name or '' }}"></label>
+      <label>ИНН застройщика<input type="text" name="developer_inn" value="{{ row.developer_inn or '' }}"></label>
+      <label>Рейтинг застройщика<input type="text" name="developer_rating" value="{{ row.developer_rating or '' }}"></label>
+      <button type="submit" name="reset_fields" value="developer_name,developer_inn,developer_rating" formnovalidate
+        style="padding:4px 10px;border:1px solid #888;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.85em"
+        onclick="return confirm('Сбросить данные застройщика к исходным?')">↺ Сбросить блок</button>
+    </fieldset>
+
+    <fieldset class="wide" style="border:1px solid #ddd;border-radius:6px;margin:0 0 10px;padding:10px">
+      <label>Подрядчик<input type="text" name="contractor_name" value="{{ row.contractor_name or '' }}"></label>
+      <label>ИНН подрядчика<input type="text" name="contractor_inn" value="{{ row.contractor_inn or '' }}"></label>
+      <label>Рейтинг подрядчика<input type="text" name="contractor_rating" value="{{ row.contractor_rating or '' }}"></label>
+      <button type="submit" name="reset_fields" value="contractor_name,contractor_inn,contractor_rating" formnovalidate
+        style="padding:4px 10px;border:1px solid #888;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.85em"
+        onclick="return confirm('Сбросить данные подрядчика к исходным?')">↺ Сбросить блок</button>
+    </fieldset>
+
+    <fieldset class="wide" style="border:1px solid #ddd;border-radius:6px;margin:0 0 10px;padding:10px">
+      <label>Дедлайн<input type="text" name="deadline" value="{{ row.deadline or '' }}"></label>
+      <label>Класс дома<input type="text" name="dom_class" value="{{ row.dom_class or '' }}"></label>
+      <label>Цена за м² (сум)<input type="text" name="price_per_m2_uzs" value="{{ row.price_per_m2_uzs or '' }}"></label>
+      <button type="submit" name="reset_fields" value="deadline,dom_class,price_per_m2_uzs" formnovalidate
+        style="padding:4px 10px;border:1px solid #888;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.85em"
+        onclick="return confirm('Сбросить дедлайн/класс/цену к исходным?')">↺ Сбросить блок</button>
+    </fieldset>
+
+    <fieldset class="wide" style="border:1px solid #ddd;border-radius:6px;margin:0 0 10px;padding:10px">
+      <label>Бренд / коммерческое название застройщика<input type="text" name="brand_name" value="{{ row.brand_name or '' }}" placeholder="напр. название бренда, под которым продаётся ЖК"></label>
+      <label>Год сдачи (если сдан)<input type="text" name="delivered_year" value="{{ row.delivered_year or '' }}" placeholder="напр. 2024"></label>
+      <label>Холдинг / аффилированная группа<input type="text" name="holding_name" value="{{ row.holding_name or '' }}" list="holdings-list" placeholder="выбери из списка или впиши новый"></label>
+      <datalist id="holdings-list">
+        {% for h in holdings %}<option value="{{ h }}">{% endfor %}
+      </datalist>
+      <label class="wide">Ссылка на коммерческую продажу (domtut / imo.uz / др.)<input type="text" name="listing_url" value="{{ row.listing_url or '' }}" placeholder="https://domtut.uz/... или https://imo.uz/..."></label>
+      <button type="submit" name="reset_fields" value="brand_name,delivered_year,holding_name,listing_url" formnovalidate
+        style="padding:4px 10px;border:1px solid #888;border-radius:6px;background:#fff;color:#555;cursor:pointer;font-size:0.85em"
+        onclick="return confirm('Сбросить бренд/год сдачи/холдинг/ссылку (это чисто ручные поля — очистятся, не восстановятся)?')">↺ Сбросить блок</button>
+    </fieldset>
+
     <div class="wide"><button type="submit" style="padding:6px 14px;border:1px solid #1a1a18;border-radius:6px;background:#1a1a18;color:#fff;cursor:pointer">Сохранить</button></div>
   </form>
   {% if row.listing_url %}
