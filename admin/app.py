@@ -183,38 +183,37 @@ def edit_complex(cam_id):
 
 @app.route('/complex/<cam_id>/rebrand', methods=['POST'])
 def rebrand_complex(cam_id):
-    rebrand_name = request.form.get('rebrand_name', '').strip()
-    rebrand_developer_name = request.form.get('rebrand_developer_name', '').strip()
-    rebrand_developer_inn = request.form.get('rebrand_developer_inn', '').strip()
-    rebrand_contractor_name = request.form.get('rebrand_contractor_name', '').strip()
-    rebrand_contractor_inn = request.form.get('rebrand_contractor_inn', '').strip()
-    old_developer_remained = request.form.get('old_developer_remained', '').strip()
-    old_contractor_remained = request.form.get('old_contractor_remained', '').strip()
-    transition_date = request.form.get('transition_date', '').strip()
-    reason = request.form.get('reason', '').strip()
-    matched_cam_id = request.form.get('matched_cam_id', '').strip()
-
-    db = get_db()
-    db.execute('''
-        INSERT INTO manual.rebrands (
-            cam_id, rebrand_name, rebrand_developer_name, rebrand_developer_inn,
-            rebrand_contractor_name, rebrand_contractor_inn,
-            old_developer_remained, old_contractor_remained, transition_date, reason,
-            matched_cam_id, created_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-    ''', (
-        cam_id, rebrand_name or None, rebrand_developer_name or None, rebrand_developer_inn or None,
-        rebrand_contractor_name or None, rebrand_contractor_inn or None,
-        old_developer_remained or None, old_contractor_remained or None,
-        transition_date or None, reason or None, matched_cam_id or None,
-        datetime.now(timezone.utc).isoformat(),
-    ))
-    db.commit()
+    form = request.form
+    try:
+        db = get_db()
+        db.execute('''
+            INSERT INTO manual.rebrands (
+                cam_id, rebrand_name, rebrand_developer_name, rebrand_developer_inn,
+                rebrand_contractor_name, rebrand_contractor_inn,
+                old_developer_remained, old_contractor_remained, transition_date, reason,
+                matched_cam_id, created_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        ''', (
+            cam_id,
+            form.get('rebrand_name', '').strip() or None,
+            form.get('rebrand_developer_name', '').strip() or None,
+            form.get('rebrand_developer_inn', '').strip() or None,
+            form.get('rebrand_contractor_name', '').strip() or None,
+            form.get('rebrand_contractor_inn', '').strip() or None,
+            form.get('old_developer_remained', '').strip() or None,
+            form.get('old_contractor_remained', '').strip() or None,
+            form.get('transition_date', '').strip() or None,
+            form.get('reason', '').strip() or None,
+            form.get('matched_cam_id', '').strip() or None,
+            datetime.now(timezone.utc).isoformat(),
+        ))
+        db.commit()
+    except sqlite3.Error as e:
+        return render_complex_detail(cam_id, rebrand_form=form, rebrand_error=str(e))
     return redirect(url_for('complex_detail', cam_id=cam_id))
 
 
-@app.route('/complex/<cam_id>')
-def complex_detail(cam_id):
+def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None):
     db = get_db()
     row = db.execute('SELECT * FROM complexes WHERE cam_id=?', (cam_id,)).fetchone()
     if row is None:
@@ -229,7 +228,13 @@ def complex_detail(cam_id):
     return render_template(
         'complex_detail.html', row=row, raw=raw, history=history,
         verdicts=VERDICTS, rebrands=rebrands,
+        rebrand_form=rebrand_form or {}, rebrand_error=rebrand_error,
     )
+
+
+@app.route('/complex/<cam_id>')
+def complex_detail(cam_id):
+    return render_complex_detail(cam_id)
 
 
 @app.route('/all')

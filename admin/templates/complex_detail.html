@@ -38,7 +38,7 @@
 .edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px}
 .edit-grid label{display:flex;flex-direction:column;font-size:12px;color:#888;gap:4px}
 .edit-grid label.wide{grid-column:1 / -1}
-.edit-grid input{padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;color:#1a1a18}
+.edit-grid input,.edit-grid select,.edit-grid textarea{padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;color:#1a1a18;font-family:inherit}
 </style>
 
 <div class="card">
@@ -70,32 +70,35 @@
 <div class="card">
   <h3>Объект ребрендирован / перезапущен</h3>
   <p style="color:#888;font-size:12px">Если проект продолжает строиться под новым названием/застройщиком при том же юр. адресе — заполни, что знаешь. CAM ID новой карточки указывать необязательно (если не знаешь — оставь пустым, сматчим позже вручную или автоматически).</p>
+  {% if rebrand_error %}
+  <p style="color:#d63b3b;font-size:13px">Ошибка сохранения: {{ rebrand_error }}. Поля не очищены, можно поправить и отправить снова.</p>
+  {% endif %}
   <form method="post" action="{{ url_for('rebrand_complex', cam_id=row.cam_id) }}" class="edit-grid">
-    <label>Новое коммерческое название<input type="text" name="rebrand_name" placeholder="напр. ЖК «Soy Bo'yi»"></label>
-    <label>Новый застройщик<input type="text" name="rebrand_developer_name"></label>
-    <label>ИНН нового застройщика<input type="text" name="rebrand_developer_inn"></label>
-    <label>Новый подрядчик<input type="text" name="rebrand_contractor_name"></label>
-    <label>ИНН нового подрядчика<input type="text" name="rebrand_contractor_inn"></label>
+    <label>Новое коммерческое название<input type="text" name="rebrand_name" value="{{ rebrand_form.get('rebrand_name', '') }}" placeholder="напр. ЖК «Soy Bo'yi»"></label>
+    <label>Новый застройщик<input type="text" name="rebrand_developer_name" value="{{ rebrand_form.get('rebrand_developer_name', '') }}"></label>
+    <label>ИНН нового застройщика<input type="text" name="rebrand_developer_inn" value="{{ rebrand_form.get('rebrand_developer_inn', '') }}"></label>
+    <label>Новый подрядчик<input type="text" name="rebrand_contractor_name" value="{{ rebrand_form.get('rebrand_contractor_name', '') }}"></label>
+    <label>ИНН нового подрядчика<input type="text" name="rebrand_contractor_inn" value="{{ rebrand_form.get('rebrand_contractor_inn', '') }}"></label>
     <label>Старый застройщик остался?
       <select name="old_developer_remained">
-        <option value="">—</option>
-        <option value="yes">Да</option>
-        <option value="no">Нет</option>
-        <option value="partial">Частично</option>
+        <option value="" {{ 'selected' if not rebrand_form.get('old_developer_remained') }}>—</option>
+        <option value="yes" {{ 'selected' if rebrand_form.get('old_developer_remained')=='yes' }}>Да</option>
+        <option value="no" {{ 'selected' if rebrand_form.get('old_developer_remained')=='no' }}>Нет</option>
+        <option value="partial" {{ 'selected' if rebrand_form.get('old_developer_remained')=='partial' }}>Частично</option>
       </select>
     </label>
     <label>Старый подрядчик остался?
       <select name="old_contractor_remained">
-        <option value="">—</option>
-        <option value="yes">Да</option>
-        <option value="no">Нет</option>
-        <option value="partial">Частично</option>
+        <option value="" {{ 'selected' if not rebrand_form.get('old_contractor_remained') }}>—</option>
+        <option value="yes" {{ 'selected' if rebrand_form.get('old_contractor_remained')=='yes' }}>Да</option>
+        <option value="no" {{ 'selected' if rebrand_form.get('old_contractor_remained')=='no' }}>Нет</option>
+        <option value="partial" {{ 'selected' if rebrand_form.get('old_contractor_remained')=='partial' }}>Частично</option>
       </select>
     </label>
-    <label>Дата ребренда<input type="date" name="transition_date"></label>
-    <label>CAM ID новой карточки (если знаешь)<input type="text" name="matched_cam_id" placeholder="напр. OBJ1234 — необязательно"></label>
-    <label class="wide">Причина / комментарий<input type="text" name="reason"></label>
-    <div class="wide"><button type="submit" style="padding:6px 14px;border:1px solid #1a1a18;border-radius:6px;background:#1a1a18;color:#fff;cursor:pointer">Сохранить</button></div>
+    <label>Дата ребренда<input type="date" name="transition_date" value="{{ rebrand_form.get('transition_date', '') }}"></label>
+    <label>CAM ID новой карточки (если знаешь)<input type="text" name="matched_cam_id" value="{{ rebrand_form.get('matched_cam_id', '') }}" placeholder="напр. OBJ1234 — необязательно"></label>
+    <label class="wide">История ЖК<textarea name="reason" rows="4" placeholder="сюда скидывай всё: что нашла, ссылки, цитаты, даты — свободным текстом">{{ rebrand_form.get('reason', '') }}</textarea></label>
+    <div class="wide"><button type="submit" style="padding:6px 14px;border:1px solid #1a1a18;border-radius:6px;background:#1a1a18;color:#fff;cursor:pointer">Ребрендирован — добавить в список</button></div>
   </form>
 </div>
 
@@ -103,7 +106,7 @@
 <div class="card">
   <h3>История ребрендов</h3>
   <table>
-    <tr><th>Когда</th><th>Новое название</th><th>Новый застройщик</th><th>Новый подрядчик</th><th>Старый застройщик остался</th><th>Дата ребренда</th><th>CAM ID (если сматчен)</th><th>Причина</th></tr>
+    <tr><th>Когда</th><th>Новое название</th><th>Новый застройщик</th><th>Новый подрядчик</th><th>Старый застройщик остался</th><th>Дата ребренда</th><th>CAM ID (если сматчен)</th><th>История ЖК</th></tr>
     {% for r in rebrands %}
     <tr>
       <td>{{ r.created_at }}</td>
