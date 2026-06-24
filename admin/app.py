@@ -7,6 +7,7 @@ CAM admin v1 — очередь проверки устаревших/неясн
     python3 app.py
     -> http://127.0.0.1:5000
 """
+import csv
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -18,6 +19,16 @@ from import_master import build_manual_schema, migrate_complexes
 
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
 MANUAL_DB_PATH = Path(__file__).parent / 'cam_manual.db'
+AFFILIATION_GROUPS_PATH = Path(__file__).parent / 'data' / 'affiliation_groups.csv'
+
+
+def get_affiliation_groups():
+    """Группа N — placeholder labels from the affiliation lookup, for use alongside manually entered holding names."""
+    if not AFFILIATION_GROUPS_PATH.exists():
+        return []
+    with open(AFFILIATION_GROUPS_PATH, encoding='utf-8') as f:
+        group_ids = {row['группа_id'] for row in csv.DictReader(f)}
+    return [f'Группа {gid}' for gid in group_ids]
 
 VERDICTS = {
     'delivered': 'Сдан',
@@ -238,6 +249,7 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None):
     holdings = [r[0] for r in db.execute(
         "SELECT DISTINCT holding_name FROM complexes WHERE holding_name IS NOT NULL AND holding_name != '' ORDER BY holding_name"
     ).fetchall()]
+    holdings = sorted(set(holdings) | set(get_affiliation_groups()))
     return render_template(
         'complex_detail.html', row=row, raw=raw, history=history,
         verdicts=VERDICTS, rebrands=rebrands, holdings=holdings,
