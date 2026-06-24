@@ -32,7 +32,7 @@ EDITABLE_FIELDS = [
     'developer_name', 'developer_inn', 'developer_rating',
     'contractor_name', 'contractor_inn', 'contractor_rating',
     'deadline', 'dom_class', 'price_per_m2_uzs', 'listing_url',
-    'brand_name', 'delivered_year',
+    'brand_name', 'delivered_year', 'holding_name',
 ]
 
 app = Flask(__name__)
@@ -112,7 +112,12 @@ def exclude_complex(cam_id):
         'INSERT OR REPLACE INTO manual.excluded_ids (cam_id, reason, excluded_at) VALUES (?,?,?)',
         (cam_id, reason, datetime.now(timezone.utc).isoformat()),
     )
-    db.execute('DELETE FROM complexes WHERE cam_id=?', (cam_id,))
+    # строку НЕ удаляем — застройщик/подрядчик/ИНН должны оставаться
+    # доступными для поиска даже у объектов, признанных "не ЖК"/отменённых
+    db.execute(
+        "UPDATE complexes SET case_status_clean='excluded', needs_review=0 WHERE cam_id=?",
+        (cam_id,),
+    )
     db.commit()
     return redirect(request.form.get('next') or url_for('review_queue'))
 
@@ -230,9 +235,12 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None):
     rebrands = db.execute(
         'SELECT * FROM manual.rebrands WHERE cam_id=? ORDER BY created_at DESC', (cam_id,)
     ).fetchall()
+    holdings = [r[0] for r in db.execute(
+        "SELECT DISTINCT holding_name FROM complexes WHERE holding_name IS NOT NULL AND holding_name != '' ORDER BY holding_name"
+    ).fetchall()]
     return render_template(
         'complex_detail.html', row=row, raw=raw, history=history,
-        verdicts=VERDICTS, rebrands=rebrands,
+        verdicts=VERDICTS, rebrands=rebrands, holdings=holdings,
         rebrand_form=rebrand_form or {}, rebrand_error=rebrand_error,
     )
 
@@ -250,8 +258,13 @@ def all_complexes():
     sql = 'SELECT * FROM complexes WHERE 1=1'
     params = []
     if q:
-        sql += ' AND (project_name LIKE ? OR address LIKE ? OR cam_id LIKE ?)'
-        params += [f'%{q}%'] * 3
+        sql += '''
+            AND (project_name LIKE ? OR address LIKE ? OR cam_id LIKE ?
+                 OR developer_name LIKE ? OR developer_inn LIKE ?
+                 OR contractor_name LIKE ? OR contractor_inn LIKE ?
+                 OR holding_name LIKE ?)
+        '''
+        params += [f'%{q}%'] * 8
     if status:
         sql += ' AND case_status_clean = ?'
         params.append(status)

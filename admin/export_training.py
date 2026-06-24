@@ -21,7 +21,7 @@ FIELDS = [
     'created_at', 'deadline', 'case_status_raw', 'case_status_clean',
     'master_status', 'target', 'is_overdue', 'days_overdue',
     'dom_class', 'price_per_m2_uzs', 'listing_url', 'brand_name',
-    'delivered_year', 'needs_review',
+    'delivered_year', 'holding_name', 'needs_review',
 ]
 
 

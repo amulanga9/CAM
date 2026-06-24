@@ -21,6 +21,10 @@
     <label>Цена за м² (сум)<input type="text" name="price_per_m2_uzs" value="{{ row.price_per_m2_uzs or '' }}"></label>
     <label>Бренд / коммерческое название застройщика<input type="text" name="brand_name" value="{{ row.brand_name or '' }}" placeholder="напр. название бренда, под которым продаётся ЖК"></label>
     <label>Год сдачи (если сдан)<input type="text" name="delivered_year" value="{{ row.delivered_year or '' }}" placeholder="напр. 2024"></label>
+    <label>Холдинг / аффилированная группа<input type="text" name="holding_name" value="{{ row.holding_name or '' }}" list="holdings-list" placeholder="выбери из списка или впиши новый"></label>
+    <datalist id="holdings-list">
+      {% for h in holdings %}<option value="{{ h }}">{% endfor %}
+    </datalist>
     <label class="wide">Ссылка на коммерческую продажу (domtut / imo.uz / др.)<input type="text" name="listing_url" value="{{ row.listing_url or '' }}" placeholder="https://domtut.uz/... или https://imo.uz/..."></label>
     <div class="wide"><button type="submit" style="padding:6px 14px;border:1px solid #1a1a18;border-radius:6px;background:#1a1a18;color:#fff;cursor:pointer">Сохранить</button></div>
   </form>
@@ -49,9 +53,9 @@
     <button type="submit" name="verdict" value="{{ key }}">{{ label }}</button>
     {% endfor %}
   </form>
-  <form method="post" action="{{ url_for('exclude_complex', cam_id=row.cam_id) }}" style="margin-top:10px" onsubmit="return confirm('Это не ЖК? Объект будет удалён из базы и больше не будет парситься.');">
+  <form method="post" action="{{ url_for('exclude_complex', cam_id=row.cam_id) }}" style="margin-top:10px" onsubmit="return confirm('Это не ЖК? Объект уйдёт из очереди проверки (статус «excluded»), но останется в базе и будет находиться по застройщику/ИНН.');">
     <input type="hidden" name="reason" value="не ЖК / мусорный объект">
-    <button type="submit" style="color:#d63b3b;border-color:#d63b3b;border:1px solid #d63b3b;background:#fff;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">Не ЖК — убрать из базы</button>
+    <button type="submit" style="color:#d63b3b;border-color:#d63b3b;border:1px solid #d63b3b;background:#fff;border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer">Не ЖК — исключить из проверки</button>
   </form>
 </div>
 

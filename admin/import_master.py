@@ -116,7 +116,7 @@ def migrate_complexes(conn):
     cols = {r[1] for r in conn.execute('PRAGMA table_info(complexes)')}
     if not cols:
         return  # таблицы ещё нет — её создаст build_schema/ensure_complexes_table
-    for col in ('brand_name', 'delivered_year'):
+    for col in ('brand_name', 'delivered_year', 'holding_name'):
         if col not in cols:
             conn.execute(f'ALTER TABLE complexes ADD COLUMN {col} TEXT')
 
@@ -157,6 +157,7 @@ def build_schema(conn):
         listing_url       TEXT,
         brand_name        TEXT,
         delivered_year    TEXT,
+        holding_name      TEXT,
         needs_review      INTEGER DEFAULT 0,
         raw_json          TEXT
     );
@@ -230,6 +231,7 @@ def build_manual_schema(conn):
         listing_url       TEXT,
         brand_name        TEXT,
         delivered_year    TEXT,
+        holding_name      TEXT,
         updated_at        TEXT
     );
 
@@ -283,7 +285,7 @@ def _migrate_manual_rebrands(conn):
 def _migrate_manual_overrides(conn):
     """Добавляет колонки в manual.overrides, если БД создана старой версией схемы."""
     cols = {r[1] for r in conn.execute("PRAGMA manual.table_info(overrides)")}
-    for col in ('brand_name', 'delivered_year'):
+    for col in ('brand_name', 'delivered_year', 'holding_name'):
         if col not in cols:
             conn.execute(f'ALTER TABLE manual.overrides ADD COLUMN {col} TEXT')
 
@@ -313,9 +315,6 @@ def import_objects(conn, wb):
             if not cam_id:
                 continue
             cam_id = str(cam_id)
-            if cam_id in excluded:
-                skipped_excluded += 1
-                continue  # помечен как "не ЖК" — не возвращаем в базу
             if cam_id in seen:
                 continue  # одна и та же запись может встречаться на нескольких листах
             seen.add(cam_id)
@@ -324,6 +323,12 @@ def import_objects(conn, wb):
             cs_clean = clean_status(case_status_raw)
             is_overdue = bool(get_field(row, header_idx, 'is_overdue'))
             needs_review = 1 if (cs_clean == 'unclear' or (cs_clean == 'in_progress' and is_overdue)) else 0
+            if cam_id in excluded:
+                # "не ЖК" — не показываем в очереди проверки, но строку (с ИНН/застройщиком
+                # /подрядчиком) сохраняем, чтобы её можно было найти по названию/ИНН позже
+                skipped_excluded += 1
+                cs_clean = 'excluded'
+                needs_review = 0
 
             raw_dict = {h: row[i] for h, i in header_idx.items()}
 
@@ -375,7 +380,7 @@ EDITABLE_FIELDS = [
     'developer_name', 'developer_inn', 'developer_rating',
     'contractor_name', 'contractor_inn', 'contractor_rating',
     'deadline', 'dom_class', 'price_per_m2_uzs', 'listing_url',
-    'brand_name', 'delivered_year',
+    'brand_name', 'delivered_year', 'holding_name',
 ]
 
 
