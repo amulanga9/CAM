@@ -24,6 +24,7 @@ VERDICTS = {
     'building': 'Строится',
     'frozen': 'Заморожен',
     'cancelled': 'Отменён',
+    'rebranded': 'Ребрендирован',
 }
 
 EDITABLE_FIELDS = [
@@ -207,6 +208,10 @@ def rebrand_complex(cam_id):
             form.get('matched_cam_id', '').strip() or None,
             datetime.now(timezone.utc).isoformat(),
         ))
+        db.execute(
+            'UPDATE complexes SET case_status_clean=?, needs_review=0 WHERE cam_id=?',
+            ('rebranded', cam_id),
+        )
         db.commit()
     except sqlite3.Error as e:
         return render_complex_detail(cam_id, rebrand_form=form, rebrand_error=str(e))
