@@ -22,21 +22,29 @@ MANUAL_DB_PATH = Path(__file__).parent / 'cam_manual.db'
 AFFILIATION_GROUPS_PATH = Path(__file__).parent / 'data' / 'affiliation_groups.csv'
 
 
-def get_affiliation_groups():
-    """Group labels built from shared founder names ('учредитель:...' in методы), not bare группа_id numbers."""
+def get_affiliation_groups(db):
+    """Group labels built from commercial/brand names of complexes tied to the
+    group's ИНН-ы (brand_name, falling back to developer_name) — founder full
+    names aren't recognizable to a reviewer, commercial names are."""
     if not AFFILIATION_GROUPS_PATH.exists():
         return []
-    founders_by_group = {}
+    inns_by_group = {}
     with open(AFFILIATION_GROUPS_PATH, encoding='utf-8') as f:
         for row in csv.DictReader(f):
-            gid = row['группа_id']
-            names = founders_by_group.setdefault(gid, set())
-            for part in row['методы'].split(';'):
-                part = part.strip()
-                if part.startswith('учредитель:'):
-                    names.add(part[len('учредитель:'):].strip().title())
+            inns_by_group.setdefault(row['группа_id'], set()).add(row['ИНН'])
+
     labels = []
-    for gid, names in founders_by_group.items():
+    for gid, inns in inns_by_group.items():
+        placeholders = ', '.join('?' for _ in inns)
+        rows = db.execute(f'''
+            SELECT DISTINCT brand_name, developer_name FROM complexes
+            WHERE developer_inn IN ({placeholders}) OR contractor_inn IN ({placeholders})
+        ''', list(inns) * 2).fetchall()
+        names = set()
+        for r in rows:
+            names.add(r['brand_name'] or r['developer_name'])
+        names.discard(None)
+        names.discard('')
         if names:
             labels.append(f"Группа: {', '.join(sorted(names))}")
         else:
@@ -308,7 +316,7 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None):
     holdings = [r[0] for r in db.execute(
         "SELECT DISTINCT holding_name FROM complexes WHERE holding_name IS NOT NULL AND holding_name != '' ORDER BY holding_name"
     ).fetchall()]
-    holdings = sorted(set(holdings) | set(get_affiliation_groups()))
+    holdings = sorted(set(holdings) | set(get_affiliation_groups(db)))
     return render_template(
         'complex_detail.html', row=row, raw=raw, history=history,
         verdicts=VERDICTS, rebrands=rebrands, phases=phases, holdings=holdings,
