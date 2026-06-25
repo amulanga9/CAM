@@ -110,6 +110,22 @@ def to_int(v):
         return None
 
 
+CORPUS_LABEL_RE = re.compile(
+    r'\(([^()]*(?:blok|bosqich|korpus|очеред|корпус|блок|этап)[^()]*)\)',
+    re.IGNORECASE,
+)
+
+
+def extract_corpus_label(project_name):
+    """Достаёт пометку корпуса/очереди/блока из текста в скобках в названии
+    проекта (напр. "...(4-blok 2-bosqich A va B korpus)"), чтобы подписать
+    фазу понятным человеку текстом вместо безликого номера листа."""
+    if not project_name:
+        return None
+    m = CORPUS_LABEL_RE.search(str(project_name))
+    return m.group(1).strip() if m else None
+
+
 def migrate_complexes(conn):
     """Добавляет недавно введённые колонки в существующую complexes,
     если БД создана старой версией схемы (без полной пересборки из Excel)."""
@@ -126,6 +142,9 @@ def migrate_complexes(conn):
             id                INTEGER PRIMARY KEY AUTOINCREMENT,
             cam_id            TEXT,
             source_sheet      TEXT,
+            corpus_label      TEXT,
+            project_name      TEXT,
+            address           TEXT,
             case_status_raw   TEXT,
             case_status_clean TEXT,
             master_status     TEXT,
@@ -191,6 +210,9 @@ def build_schema(conn):
         id                INTEGER PRIMARY KEY AUTOINCREMENT,
         cam_id            TEXT,
         source_sheet      TEXT,
+        corpus_label      TEXT,
+        project_name      TEXT,
+        address           TEXT,
         case_status_raw   TEXT,
         case_status_clean TEXT,
         master_status     TEXT,
@@ -369,19 +391,27 @@ def import_objects(conn, wb):
                 needs_review = 0
 
             raw_dict = {h: row[i] for h, i in header_idx.items()}
+            phase_project_name = get_field(row, header_idx, 'project_name')
 
             # фиксируем каждую встреченную строку как "фазу" — для одиночных
             # объектов это единственная строка, для group-ID (несколько
             # корпусов/очередей под одним cam_id) видно все, даже те, что
-            # complexes ниже не возьмёт из-за дедупликации по cam_id
+            # complexes ниже не возьмёт из-за дедупликации по cam_id.
+            # corpus_label вытаскивается из текста в скобках в названии —
+            # это и есть человекочитаемая подпись фазы (корпус/очередь/блок)
             cur.execute('''
                 INSERT INTO phases (
-                    cam_id, source_sheet, case_status_raw, case_status_clean,
+                    cam_id, source_sheet, corpus_label, project_name, address,
+                    case_status_raw, case_status_clean,
                     master_status, target, created_at, deadline,
                     delivery_date_fact, delay_days_fact, days_overdue
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ''', (
-                cam_id, sheet_name, str(case_status_raw or ''), cs_clean,
+                cam_id, sheet_name,
+                extract_corpus_label(phase_project_name),
+                str(phase_project_name or ''),
+                str(get_field(row, header_idx, 'address') or ''),
+                str(case_status_raw or ''), cs_clean,
                 get_field(row, header_idx, 'master_status'),
                 to_int(get_field(row, header_idx, 'target')),
                 str(get_field(row, header_idx, 'created_at') or ''),

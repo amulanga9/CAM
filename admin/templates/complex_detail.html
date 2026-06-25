@@ -4,26 +4,32 @@
 
 {% if phases|length > 1 %}
 <div class="card">
-  <h3>Фазы / корпуса этого объекта ({{ phases|length }})</h3>
+  <h3>Корпуса / очереди этого ЖК ({{ phases|length }})</h3>
   <p style="color:var(--text-dim);font-size:11.5px;margin-top:-4px">
-    Один cam_id встречается на нескольких листах выгрузки — ниже все встреченные строки, не только та, что попала в карточку.
+    Один cam_id объединяет несколько корпусов/очередей строительства — каждый со своим статусом сдачи.
   </p>
-  <table>
-    <tr><th>Лист</th><th>Статус (исходный)</th><th>Статус (чистый)</th><th>master_status</th><th>target</th><th>Дедлайн</th><th>Факт. сдача</th><th>Просрочка (дн.)</th></tr>
+  <div class="phase-grid">
     {% for p in phases %}
-    <tr>
-      <td>{{ p.source_sheet }}</td>
-      <td>{{ p.case_status_raw or '—' }}</td>
-      <td><span class="badge {{ p.case_status_clean }}">{{ p.case_status_clean }}</span></td>
-      <td>{{ p.master_status if p.master_status is not none else '—' }}</td>
-      <td>{{ p.target if p.target is not none else '—' }}</td>
-      <td>{{ p.deadline or '—' }}</td>
-      <td>{{ p.delivery_date_fact or '—' }}</td>
-      <td>{{ p.days_overdue if p.days_overdue is not none else '—' }}</td>
-    </tr>
+    <div class="phase-card">
+      <div class="phase-label">{{ p.corpus_label or ('Корпус ' ~ loop.index) }}</div>
+      <div class="phase-status"><span class="badge {{ p.case_status_clean }}">{{ p.case_status_clean }}</span> <span class="phase-dim">{{ p.case_status_raw or '' }}</span></div>
+      <div class="phase-meta">
+        Дедлайн: {{ p.deadline or '—' }}{% if p.delivery_date_fact %} · сдан факт.: {{ p.delivery_date_fact }}{% endif %}
+        {% if p.days_overdue %} · просрочка: {{ p.days_overdue }} дн.{% endif %}
+      </div>
+      <div class="phase-dim">источник: {{ p.source_sheet }}</div>
+    </div>
     {% endfor %}
-  </table>
+  </div>
 </div>
+<style>
+.phase-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.phase-card{border:1px solid var(--border);border-radius:6px;padding:10px 12px;background:var(--bg-raised)}
+.phase-label{color:var(--text-bright);font-weight:600;font-size:12px;margin-bottom:6px}
+.phase-status{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.phase-meta{font-size:11.5px;color:var(--text);margin-bottom:4px}
+.phase-dim{font-size:11px;color:var(--text-dim)}
+</style>
 {% endif %}
 
 <div class="card">
