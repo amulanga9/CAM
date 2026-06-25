@@ -11,13 +11,13 @@
   <div class="phase-grid">
     {% for p in phases %}
     <div class="phase-card">
-      <div class="phase-label">{{ p.corpus_label or ('Корпус ' ~ loop.index) }}</div>
+      {% if p.corpus_label %}<div class="phase-label">{{ p.corpus_label }}</div>{% endif %}
       <div class="phase-status"><span class="badge {{ p.case_status_clean }}">{{ p.case_status_clean }}</span> <span class="phase-dim">{{ p.case_status_raw or '' }}</span></div>
       <div class="phase-meta">
         Дедлайн: {{ p.deadline or '—' }}{% if p.delivery_date_fact %} · сдан факт.: {{ p.delivery_date_fact }}{% endif %}
         {% if p.days_overdue %} · просрочка: {{ p.days_overdue }} дн.{% endif %}
       </div>
-      <div class="phase-dim">источник: {{ p.source_sheet }}</div>
+      <div class="phase-dim">источник: {{ p.sources|join(', ') }}</div>
     </div>
     {% endfor %}
   </div>

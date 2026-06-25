@@ -298,6 +298,24 @@ def rebrand_complex(cam_id):
     return redirect(url_for('complex_detail', cam_id=cam_id))
 
 
+def dedupe_phases(phases):
+    """Несколько листов могут содержать буквально одну и ту же запись
+    (тот же статус/дедлайн/факт. сдача) — это не разные корпуса, а просто
+    повтор строки в исходнике. Схлопываем такие повторы в одну фазу со
+    списком источников, иначе в карточке появляются фиктивные "Корпус N"."""
+    merged = {}
+    order = []
+    for p in phases:
+        sig = (p['corpus_label'], p['case_status_clean'], p['deadline'], p['delivery_date_fact'])
+        if sig not in merged:
+            merged[sig] = dict(p)
+            merged[sig]['sources'] = [p['source_sheet']]
+            order.append(sig)
+        else:
+            merged[sig]['sources'].append(p['source_sheet'])
+    return [merged[sig] for sig in order]
+
+
 def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None):
     db = get_db()
     row = db.execute('SELECT * FROM complexes WHERE cam_id=?', (cam_id,)).fetchone()
@@ -310,9 +328,9 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None):
     rebrands = db.execute(
         'SELECT * FROM manual.rebrands WHERE cam_id=? ORDER BY created_at DESC', (cam_id,)
     ).fetchall()
-    phases = db.execute(
+    phases = dedupe_phases(db.execute(
         'SELECT * FROM phases WHERE cam_id=? ORDER BY id', (cam_id,)
-    ).fetchall()
+    ).fetchall())
     holdings = [r[0] for r in db.execute(
         "SELECT DISTINCT holding_name FROM complexes WHERE holding_name IS NOT NULL AND holding_name != '' ORDER BY holding_name"
     ).fetchall()]
