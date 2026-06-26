@@ -170,6 +170,37 @@ details.block .block-body button:hover{border-color:var(--accent);color:var(--ac
   </form>
 </div>
 
+<details class="block">
+  <summary>
+    <span class="summary-title">Перенос сроков</span>
+    <span class="summary-vals">{% if delay_flag %}{{ delay_types.get(delay_flag.delay_type, delay_flag.delay_type) }}{% else %}не отмечен{% endif %}</span>
+  </summary>
+  <div class="block-body">
+    <p style="color:var(--text-dim);font-size:12px">
+      Отдельная пометка, не статус сдачи. «С документами» сохранится только если указан источник про сам объект
+      (get-gasn-info, реестр приостановленных, суд, новость с прямым названием ЖК) — без него запись уйдёт в «без подтверждения».
+    </p>
+    <form method="post" action="{{ url_for('set_delay_flag', cam_id=row.cam_id) }}" class="edit-grid">
+      <label>Исходный дедлайн<input type="text" name="original_deadline" value="{{ delay_flag.original_deadline if delay_flag else '' }}" placeholder="напр. 2022-10-29"></label>
+      <label>Текущий/фактический дедлайн<input type="text" name="current_deadline" value="{{ delay_flag.current_deadline if delay_flag else '' }}" placeholder="напр. 2027-01-01"></label>
+      <label class="wide">Источник (proof_url) — обязателен для «с документами»<input type="text" name="proof_url" value="{{ delay_flag.proof_url if delay_flag else '' }}" placeholder="https://..."></label>
+      <label>Тип источника
+        <select name="proof_type">
+          <option value="">—</option>
+          {% for key, label in proof_types.items() %}
+          <option value="{{ key }}" {{ 'selected' if delay_flag and delay_flag.proof_type == key }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="wide">Комментарий<input type="text" name="comment" value="{{ delay_flag.comment if delay_flag else '' }}"></label>
+      <div class="wide" style="display:flex;gap:8px">
+        <button type="submit" name="delay_type" value="unconfirmed">Перенос сроков (без подтверждения)</button>
+        <button type="submit" name="delay_type" value="confirmed" style="border-color:var(--warn);color:var(--warn)">Долгострой / перенос с документами</button>
+      </div>
+    </form>
+  </div>
+</details>
+
 {% if history %}
 <div class="card">
   <h3>История проверок</h3>

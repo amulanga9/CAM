@@ -332,6 +332,23 @@ def build_manual_schema(conn):
         matched_cam_id          TEXT,
         created_at              TEXT
     );
+
+    -- метка переноса сроков, отдельная от вердикта по статусу: у объекта
+    -- может быть статус "строится"/"заморожен" и при этом отдельно отмечен
+    -- перенос дедлайна. delay_type: unconfirmed (есть только сами даты,
+    -- без документа) | confirmed (есть proof_url+proof_type — официальный
+    -- источник про САМ объект, не догадка). Сервер сам понижает confirmed
+    -- до unconfirmed, если proof_url/proof_type не заполнены.
+    CREATE TABLE IF NOT EXISTS manual.delay_flags (
+        cam_id            TEXT PRIMARY KEY,
+        delay_type        TEXT NOT NULL,   -- unconfirmed | confirmed
+        original_deadline TEXT,
+        current_deadline  TEXT,
+        proof_url         TEXT,
+        proof_type        TEXT,            -- gasn_closed | suspended_registry | court | news_named
+        comment           TEXT,
+        updated_at        TEXT
+    );
     ''')
     _migrate_manual_overrides(conn)
     _migrate_manual_rebrands(conn)

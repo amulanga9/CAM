@@ -10,7 +10,9 @@
 {% for r in rows %}
 <tr>
   <td><a href="{{ url_for('complex_detail', cam_id=r.cam_id) }}">{{ r.cam_id }}</a></td>
-  <td>{{ r.project_name or '—' }}<br><small style="color:#888">{{ r.address or '' }}</small></td>
+  <td>{{ r.project_name or '—' }}<br><small style="color:#888">{{ r.address or '' }}</small>
+    {% if r.delay_type %}<br><span class="badge {{ 'frozen' if r.delay_type == 'confirmed' else 'unclear' }}">{{ delay_types.get(r.delay_type, r.delay_type) }}</span>{% endif %}
+  </td>
   <td>{{ r.district_name or '—' }}</td>
   <td>{{ r.deadline or '—' }}</td>
   <td>{{ r.days_overdue or '—' }}</td>

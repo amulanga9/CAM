@@ -67,6 +67,18 @@ EDITABLE_FIELDS = [
     'brand_name', 'delivered_year', 'holding_name',
 ]
 
+DELAY_TYPES = {
+    'unconfirmed': 'Перенос сроков (без подтверждения)',
+    'confirmed': 'Долгострой / перенос с документами',
+}
+
+PROOF_TYPES = {
+    'gasn_closed': 'get-gasn-info: closed_at / смена статуса',
+    'suspended_registry': 'реестр приостановленных (shr-tashkent.uz)',
+    'court': 'судебное дело по объекту',
+    'news_named': 'новость, прямо называющая этот ЖК/застройщика/адрес',
+}
+
 FLOAT_FIELDS = {'lat', 'lng', 'price_per_m2_uzs'}
 
 
@@ -120,12 +132,13 @@ def dashboard():
 def review_queue():
     db = get_db()
     rows = db.execute('''
-        SELECT c.* FROM complexes c
+        SELECT c.*, d.delay_type AS delay_type FROM complexes c
+        LEFT JOIN manual.delay_flags d ON d.cam_id = c.cam_id
         WHERE c.needs_review = 1
           AND c.cam_id NOT IN (SELECT cam_id FROM manual.reviews)
         ORDER BY c.days_overdue DESC, c.cam_id
     ''').fetchall()
-    return render_template('review_queue.html', rows=rows, verdicts=VERDICTS)
+    return render_template('review_queue.html', rows=rows, verdicts=VERDICTS, delay_types=DELAY_TYPES)
 
 
 @app.route('/review/<cam_id>', methods=['POST'])
@@ -298,6 +311,44 @@ def rebrand_complex(cam_id):
     return redirect(url_for('complex_detail', cam_id=cam_id))
 
 
+@app.route('/complex/<cam_id>/delay', methods=['POST'])
+def set_delay_flag(cam_id):
+    form = request.form
+    delay_type = form.get('delay_type')
+    if delay_type not in DELAY_TYPES:
+        return 'bad delay_type', 400
+
+    proof_url = form.get('proof_url', '').strip() or None
+    proof_type = form.get('proof_type', '').strip() or None
+    if proof_type not in PROOF_TYPES:
+        proof_type = None
+    # без источника про сам объект "подтверждённый долгострой" — это догадка,
+    # а не документ, поэтому понижаем до неподтверждённого вместо ошибки
+    if delay_type == 'confirmed' and not (proof_url and proof_type):
+        delay_type = 'unconfirmed'
+
+    db = get_db()
+    db.execute('''
+        INSERT INTO manual.delay_flags (
+            cam_id, delay_type, original_deadline, current_deadline,
+            proof_url, proof_type, comment, updated_at
+        ) VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT(cam_id) DO UPDATE SET
+            delay_type=excluded.delay_type, original_deadline=excluded.original_deadline,
+            current_deadline=excluded.current_deadline, proof_url=excluded.proof_url,
+            proof_type=excluded.proof_type, comment=excluded.comment, updated_at=excluded.updated_at
+    ''', (
+        cam_id, delay_type,
+        form.get('original_deadline', '').strip() or None,
+        form.get('current_deadline', '').strip() or None,
+        proof_url, proof_type,
+        form.get('comment', '').strip() or None,
+        datetime.now(timezone.utc).isoformat(),
+    ))
+    db.commit()
+    return redirect(url_for('complex_detail', cam_id=cam_id))
+
+
 def dedupe_phases(phases):
     """Несколько листов могут содержать буквально одну и ту же запись
     (тот же статус/дедлайн/факт. сдача) — это не разные корпуса, а просто
@@ -331,6 +382,9 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None):
     phases = dedupe_phases(db.execute(
         'SELECT * FROM phases WHERE cam_id=? ORDER BY id', (cam_id,)
     ).fetchall())
+    delay_flag = db.execute(
+        'SELECT * FROM manual.delay_flags WHERE cam_id=?', (cam_id,)
+    ).fetchone()
     holdings = [r[0] for r in db.execute(
         "SELECT DISTINCT holding_name FROM complexes WHERE holding_name IS NOT NULL AND holding_name != '' ORDER BY holding_name"
     ).fetchall()]
@@ -338,6 +392,7 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None):
     return render_template(
         'complex_detail.html', row=row, raw=raw, history=history,
         verdicts=VERDICTS, rebrands=rebrands, phases=phases, holdings=holdings,
+        delay_flag=delay_flag, delay_types=DELAY_TYPES, proof_types=PROOF_TYPES,
         rebrand_form=rebrand_form or {}, rebrand_error=rebrand_error,
     )
 
