@@ -192,6 +192,12 @@ details.block .block-body button:hover{border-color:var(--accent);color:var(--ac
           {% endfor %}
         </select>
       </label>
+      <label>Разрешение на строительство выдано (permit_date)<input type="text" name="permit_date" value="{{ delay_flag.permit_date if delay_flag else '' }}" placeholder="напр. 2020-10-29"></label>
+      <label>Дата регистрации/выписки начала СМР<input type="text" name="smr_registration_date" value="{{ delay_flag.smr_registration_date if delay_flag else '' }}" placeholder="напр. 2024-10-06"></label>
+      <label>Номер заявления (ариза рақами)<input type="text" name="application_number" value="{{ delay_flag.application_number if delay_flag else '' }}" placeholder="напр. 151978870"></label>
+      <p class="wide" style="color:var(--text-dim);font-size:11px">
+        Внимание: дата выписки о СМР часто = дата, когда документ сформировали/распечатали, а не дата фактического события. Не считать автоматически датой возобновления строительства.
+      </p>
       <label class="wide">Комментарий<input type="text" name="comment" value="{{ delay_flag.comment if delay_flag else '' }}"></label>
       <div class="wide" style="display:flex;gap:8px">
         <button type="submit" name="delay_type" value="unconfirmed">Перенос сроков (без подтверждения)</button>

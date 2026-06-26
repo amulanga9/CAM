@@ -331,12 +331,15 @@ def set_delay_flag(cam_id):
     db.execute('''
         INSERT INTO manual.delay_flags (
             cam_id, delay_type, original_deadline, current_deadline,
-            proof_url, proof_type, comment, updated_at
-        ) VALUES (?,?,?,?,?,?,?,?)
+            proof_url, proof_type, comment, updated_at,
+            permit_date, smr_registration_date, application_number
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(cam_id) DO UPDATE SET
             delay_type=excluded.delay_type, original_deadline=excluded.original_deadline,
             current_deadline=excluded.current_deadline, proof_url=excluded.proof_url,
-            proof_type=excluded.proof_type, comment=excluded.comment, updated_at=excluded.updated_at
+            proof_type=excluded.proof_type, comment=excluded.comment, updated_at=excluded.updated_at,
+            permit_date=excluded.permit_date, smr_registration_date=excluded.smr_registration_date,
+            application_number=excluded.application_number
     ''', (
         cam_id, delay_type,
         form.get('original_deadline', '').strip() or None,
@@ -344,6 +347,9 @@ def set_delay_flag(cam_id):
         proof_url, proof_type,
         form.get('comment', '').strip() or None,
         datetime.now(timezone.utc).isoformat(),
+        form.get('permit_date', '').strip() or None,
+        form.get('smr_registration_date', '').strip() or None,
+        form.get('application_number', '').strip() or None,
     ))
     db.commit()
     return redirect(url_for('complex_detail', cam_id=cam_id))

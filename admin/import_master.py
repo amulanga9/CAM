@@ -347,9 +347,17 @@ def build_manual_schema(conn):
         proof_url         TEXT,
         proof_type        TEXT,            -- gasn_closed | suspended_registry | court | news_named
         comment           TEXT,
-        updated_at        TEXT
+        updated_at        TEXT,
+        permit_date            TEXT,   -- Qurilishga ruxsat berilgan sana — дата выдачи разрешения на строительство
+        smr_registration_date  TEXT,   -- дата из выписки о регистрации начала СМР (может совпадать с датой генерации документа, а не события)
+        application_number     TEXT    -- Ариза рақами — номер заявления, для сверки документов друг с другом
     );
     ''')
+    for col in ('permit_date', 'smr_registration_date', 'application_number'):
+        try:
+            conn.execute(f'ALTER TABLE manual.delay_flags ADD COLUMN {col} TEXT')
+        except sqlite3.OperationalError:
+            pass
     _migrate_manual_overrides(conn)
     _migrate_manual_rebrands(conn)
 
