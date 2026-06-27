@@ -350,10 +350,14 @@ def build_manual_schema(conn):
         updated_at        TEXT,
         permit_date            TEXT,   -- Qurilishga ruxsat berilgan sana — дата выдачи разрешения на строительство
         smr_registration_date  TEXT,   -- дата из выписки о регистрации начала СМР (может совпадать с датой генерации документа, а не события)
-        application_number     TEXT    -- Ариза рақами — номер заявления, для сверки документов друг с другом
+        application_number     TEXT,   -- Ариза рақами — номер заявления, для сверки документов друг с другом
+        doc_hash               TEXT,   -- № выписки (уникальный номер документа на repo.gov.uz) — для повторной проверки/дедупа загрузок
+        applicant_name         TEXT,   -- "Ҳужжат берилган" — застройщик/физлицо из самой выписки, для сверки с complexes.developer_name
+        tax_id                 TEXT    -- СТИР (юрлицо) или ЖШШИР (физлицо) из выписки, для сверки с complexes.developer_inn
     );
     ''')
-    for col in ('permit_date', 'smr_registration_date', 'application_number'):
+    for col in ('permit_date', 'smr_registration_date', 'application_number',
+                'doc_hash', 'applicant_name', 'tax_id'):
         try:
             conn.execute(f'ALTER TABLE manual.delay_flags ADD COLUMN {col} TEXT')
         except sqlite3.OperationalError:

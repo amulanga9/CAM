@@ -180,6 +180,21 @@ details.block .block-body button:hover{border-color:var(--accent);color:var(--ac
       Отдельная пометка, не статус сдачи. «С документами» сохранится только если указан источник про сам объект
       (get-gasn-info, реестр приостановленных, суд, новость с прямым названием ЖК) — без него запись уйдёт в «без подтверждения».
     </p>
+
+    <form method="post" action="{{ url_for('parse_ariza_pdf', cam_id=row.cam_id) }}" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+      <label style="margin:0">Загрузить выписку (ariza/ko'chirma PDF)<input type="file" name="ariza_pdf" accept="application/pdf" required></label>
+      <button type="submit">Распознать</button>
+    </form>
+    {% if delay_parse_error %}
+    <p style="color:var(--warn);font-size:12px">Не удалось распознать PDF: {{ delay_parse_error }}</p>
+    {% endif %}
+    {% if delay_flag and (delay_flag.doc_hash or delay_flag.applicant_name or delay_flag.tax_id) %}
+    <p style="color:var(--text-dim);font-size:11px">
+      Из выписки: {{ delay_flag.applicant_name or '—' }} (СТИР/ЖШШИР {{ delay_flag.tax_id or '—' }}) · № {{ delay_flag.doc_hash or '—' }}.
+      Сверь с застройщиком в карточке выше — если не совпадает, это может быть не тот объект/застройщик.
+    </p>
+    {% endif %}
+
     <form method="post" action="{{ url_for('set_delay_flag', cam_id=row.cam_id) }}" class="edit-grid">
       <label>Исходный дедлайн<input type="text" name="original_deadline" value="{{ delay_flag.original_deadline if delay_flag else '' }}" placeholder="напр. 2022-10-29"></label>
       <label>Текущий/фактический дедлайн<input type="text" name="current_deadline" value="{{ delay_flag.current_deadline if delay_flag else '' }}" placeholder="напр. 2027-01-01"></label>

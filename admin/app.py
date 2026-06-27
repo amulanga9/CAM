@@ -15,6 +15,7 @@ from pathlib import Path
 
 from flask import Flask, g, redirect, render_template, request, url_for
 
+import ariza_parser
 from import_master import FIELD_ALIASES, build_manual_schema, migrate_complexes, to_float
 
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
@@ -355,6 +356,44 @@ def set_delay_flag(cam_id):
     return redirect(url_for('complex_detail', cam_id=cam_id))
 
 
+@app.route('/complex/<cam_id>/delay/parse-ariza', methods=['POST'])
+def parse_ariza_pdf(cam_id):
+    """Загрузка PDF выписки (ariza/ko'chirma) — поля вытаскиваются автоматически
+    и сохраняются как черновик в delay_flags (delay_type не трогаем, если
+    запись уже есть — пользователь сам решает unconfirmed/confirmed отдельно)."""
+    f = request.files.get('ariza_pdf')
+    if not f or not f.filename:
+        return 'нет файла', 400
+    try:
+        parsed = ariza_parser.parse_file(f.stream)
+    except Exception as e:
+        return render_complex_detail(cam_id, delay_parse_error=str(e))
+
+    db = get_db()
+    existing = db.execute(
+        'SELECT delay_type FROM manual.delay_flags WHERE cam_id=?', (cam_id,)
+    ).fetchone()
+    delay_type = existing['delay_type'] if existing else 'unconfirmed'
+    db.execute('''
+        INSERT INTO manual.delay_flags (
+            cam_id, delay_type, application_number, smr_registration_date,
+            doc_hash, applicant_name, tax_id, updated_at
+        ) VALUES (?,?,?,?,?,?,?,?)
+        ON CONFLICT(cam_id) DO UPDATE SET
+            application_number=excluded.application_number,
+            smr_registration_date=excluded.smr_registration_date,
+            doc_hash=excluded.doc_hash, applicant_name=excluded.applicant_name,
+            tax_id=excluded.tax_id, updated_at=excluded.updated_at
+    ''', (
+        cam_id, delay_type,
+        parsed.get('application_number'), parsed.get('created_at'),
+        parsed.get('doc_hash'), parsed.get('applicant_name'), parsed.get('tax_id'),
+        datetime.now(timezone.utc).isoformat(),
+    ))
+    db.commit()
+    return redirect(url_for('complex_detail', cam_id=cam_id))
+
+
 def dedupe_phases(phases):
     """Несколько листов могут содержать буквально одну и ту же запись
     (тот же статус/дедлайн/факт. сдача) — это не разные корпуса, а просто
@@ -373,7 +412,7 @@ def dedupe_phases(phases):
     return [merged[sig] for sig in order]
 
 
-def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None):
+def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None, delay_parse_error=None):
     db = get_db()
     row = db.execute('SELECT * FROM complexes WHERE cam_id=?', (cam_id,)).fetchone()
     if row is None:
@@ -400,6 +439,7 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None):
         verdicts=VERDICTS, rebrands=rebrands, phases=phases, holdings=holdings,
         delay_flag=delay_flag, delay_types=DELAY_TYPES, proof_types=PROOF_TYPES,
         rebrand_form=rebrand_form or {}, rebrand_error=rebrand_error,
+        delay_parse_error=delay_parse_error,
     )
 
 
