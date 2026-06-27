@@ -353,11 +353,16 @@ def build_manual_schema(conn):
         application_number     TEXT,   -- Ариза рақами — номер заявления, для сверки документов друг с другом
         doc_hash               TEXT,   -- № выписки (уникальный номер документа на repo.gov.uz) — для повторной проверки/дедупа загрузок
         applicant_name         TEXT,   -- "Ҳужжат берилган" — застройщик/физлицо из самой выписки, для сверки с complexes.developer_name
-        tax_id                 TEXT    -- СТИР (юрлицо) или ЖШШИР (физлицо) из выписки, для сверки с complexes.developer_inn
+        tax_id                 TEXT,   -- СТИР (юрлицо) или ЖШШИР (физлицо) из выписки, для сверки с complexes.developer_inn
+        portal_deadline        TEXT,   -- endDate с object-info портала — собственный дедлайн nazorat.mc.uz, для сверки с complexes.deadline
+        expertise_number       TEXT,   -- реестровый номер заключения экспертизы (с object-info)
+        apz_number             TEXT,   -- реестровый номер заключения Архитектурно-градостроительного совета
+        portal_fetched_at      TEXT    -- когда последний раз автоматически подтягивали object-info с портала
     );
     ''')
     for col in ('permit_date', 'smr_registration_date', 'application_number',
-                'doc_hash', 'applicant_name', 'tax_id'):
+                'doc_hash', 'applicant_name', 'tax_id',
+                'portal_deadline', 'expertise_number', 'apz_number', 'portal_fetched_at'):
         try:
             conn.execute(f'ALTER TABLE manual.delay_flags ADD COLUMN {col} TEXT')
         except sqlite3.OperationalError:

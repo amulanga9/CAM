@@ -16,6 +16,7 @@ from pathlib import Path
 from flask import Flask, g, redirect, render_template, request, url_for
 
 import ariza_parser
+import object_info_parser
 from import_master import FIELD_ALIASES, build_manual_schema, migrate_complexes, to_float
 
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
@@ -389,6 +390,64 @@ def parse_ariza_pdf(cam_id):
         parsed.get('application_number'), parsed.get('created_at'),
         parsed.get('doc_hash'), parsed.get('applicant_name'), parsed.get('tax_id'),
         datetime.now(timezone.utc).isoformat(),
+    ))
+    db.commit()
+    return redirect(url_for('complex_detail', cam_id=cam_id))
+
+
+@app.route('/complex/<cam_id>/delay/fetch-portal', methods=['POST'])
+def fetch_portal_info(cam_id):
+    """Автоматически подтягивает object-info с nazorat.mc.uz (permit_date,
+    portal_deadline, номера экспертизы/АПЗ) и, если получится, саму PDF
+    выписку (smr_registration_date/application_number/doc_hash/applicant_name/
+    tax_id) — без ручного скачивания/загрузки файлов пользователем. Работает
+    только для GASN-объектов (cam_id вида GASN-<object_id>), у других нет
+    object_id для портала."""
+    object_id = object_info_parser.object_id_from_cam_id(cam_id)
+    if not object_id:
+        return render_complex_detail(cam_id, delay_parse_error='нет object_id портала для этого объекта (не GASN)')
+
+    try:
+        info = object_info_parser.fetch(object_id)
+    except Exception as e:
+        return render_complex_detail(cam_id, delay_parse_error=f'не удалось получить object-info: {e}')
+
+    ariza_fields = {}
+    try:
+        pdf_bytes = object_info_parser.fetch_pdf_bytes(object_id)
+        if pdf_bytes:
+            import io
+            ariza_fields = ariza_parser.parse_file(io.BytesIO(pdf_bytes))
+    except Exception:
+        pass  # выписки может не быть на портале — это не ошибка получения object-info
+
+    db = get_db()
+    existing = db.execute(
+        'SELECT delay_type FROM manual.delay_flags WHERE cam_id=?', (cam_id,)
+    ).fetchone()
+    delay_type = existing['delay_type'] if existing else 'unconfirmed'
+    db.execute('''
+        INSERT INTO manual.delay_flags (
+            cam_id, delay_type, permit_date, portal_deadline,
+            expertise_number, apz_number, application_number,
+            smr_registration_date, doc_hash, applicant_name, tax_id,
+            updated_at, portal_fetched_at
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(cam_id) DO UPDATE SET
+            permit_date=excluded.permit_date, portal_deadline=excluded.portal_deadline,
+            expertise_number=excluded.expertise_number, apz_number=excluded.apz_number,
+            application_number=COALESCE(excluded.application_number, manual.delay_flags.application_number),
+            smr_registration_date=COALESCE(excluded.smr_registration_date, manual.delay_flags.smr_registration_date),
+            doc_hash=COALESCE(excluded.doc_hash, manual.delay_flags.doc_hash),
+            applicant_name=COALESCE(excluded.applicant_name, manual.delay_flags.applicant_name),
+            tax_id=COALESCE(excluded.tax_id, manual.delay_flags.tax_id),
+            updated_at=excluded.updated_at, portal_fetched_at=excluded.portal_fetched_at
+    ''', (
+        cam_id, delay_type, info.get('permit_date'), info.get('portal_deadline'),
+        info.get('expertise_number'), info.get('apz_number'),
+        ariza_fields.get('application_number'), ariza_fields.get('created_at'),
+        ariza_fields.get('doc_hash'), ariza_fields.get('applicant_name'), ariza_fields.get('tax_id'),
+        datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat(),
     ))
     db.commit()
     return redirect(url_for('complex_detail', cam_id=cam_id))

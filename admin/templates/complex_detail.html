@@ -181,6 +181,21 @@ details.block .block-body button:hover{border-color:var(--accent);color:var(--ac
       (get-gasn-info, реестр приостановленных, суд, новость с прямым названием ЖК) — без него запись уйдёт в «без подтверждения».
     </p>
 
+    {% if row.cam_id.startswith('GASN-') %}
+    <form method="post" action="{{ url_for('fetch_portal_info', cam_id=row.cam_id) }}" style="margin-bottom:10px">
+      <button type="submit">Подтянуть с портала nazorat.mc.uz (дата разрешения, выписка СМР — автоматически)</button>
+      {% if delay_flag and delay_flag.portal_fetched_at %}
+      <span style="color:var(--text-dim);font-size:11px"> последний раз: {{ delay_flag.portal_fetched_at[:10] }}</span>
+      {% endif %}
+    </form>
+    {% if delay_flag and delay_flag.permit_date and delay_flag.smr_registration_date %}
+    <p style="color:var(--warn);font-size:12px">
+      Разрешение выдано {{ delay_flag.permit_date[:10] }}, выписка о начале СМР датирована {{ delay_flag.smr_registration_date[:10] }} —
+      если между ними большой разрыв, это может означать, что стройка фактически не начиналась всё это время.
+    </p>
+    {% endif %}
+    {% endif %}
+
     <form method="post" action="{{ url_for('parse_ariza_pdf', cam_id=row.cam_id) }}" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
       <label style="margin:0">Загрузить выписку (ariza/ko'chirma PDF)<input type="file" name="ariza_pdf" accept="application/pdf" required></label>
       <button type="submit">Распознать</button>
