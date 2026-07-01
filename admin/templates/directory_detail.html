@@ -73,18 +73,54 @@
   </summary>
   <div class="block-body">
     <form method="post" action="{{ url_for('directory_edit', role=role, org_key=org.org_key) }}"
-          style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          style="display:flex;flex-direction:column;gap:12px;max-width:500px">
       <div>
-        <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">Каноническое название</div>
-        <input type="text" name="name_canonical" value="{{ org.name_canonical or '' }}" style="width:380px">
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">
+          Каноническое название <span style="color:var(--text-dim);font-weight:400">(как отображается в админке)</span>
+        </div>
+        <input type="text" name="name_canonical" value="{{ org.name_canonical or '' }}" style="width:100%">
       </div>
       <div>
-        <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">Рейтинг</div>
-        <input type="text" name="rating" value="{{ org.rating or '' }}" style="width:80px">
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
+          Рейтинг <span style="color:var(--text-dim);font-weight:400">(ставите вручную)</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          {% for grade, label, color in (
+              ('A','Надёжный','var(--good)'),
+              ('B','Хороший','#4ad8ff'),
+              ('C','Средний','var(--warn)'),
+              ('D','Слабый','var(--bad)')
+          ) %}
+            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;
+                          font-size:12px;padding:5px 10px;border-radius:5px;
+                          border:1px solid {% if org.rating==grade %}{{ color }}{% else %}var(--border-hi){% endif %};
+                          background:{% if org.rating==grade %}rgba(100,100,100,.15){% else %}var(--bg-raised){% endif %};
+                          color:{{ color }}">
+              <input type="radio" name="rating" value="{{ grade }}"
+                     {% if org.rating==grade %}checked{% endif %}
+                     style="accent-color:{{ color }}">
+              <b>{{ grade }}</b> <span style="color:var(--text-dim)">{{ label }}</span>
+            </label>
+          {% endfor %}
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;
+                        font-size:12px;padding:5px 10px;border-radius:5px;
+                        border:1px solid var(--border-hi);color:var(--text-dim);
+                        background:var(--bg-raised)">
+            <input type="radio" name="rating" value=""
+                   {% if not org.rating %}checked{% endif %}>
+            Не задан
+          </label>
+        </div>
       </div>
-      <button type="submit" style="border:1px solid var(--accent);background:rgba(57,255,196,.07);
-              color:var(--accent);border-radius:5px;padding:6px 16px;font-size:12px;
-              cursor:pointer;font-family:inherit">Сохранить</button>
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">Заметки</div>
+        <textarea name="notes" rows="3" style="width:100%;resize:vertical">{{ org.notes or '' }}</textarea>
+      </div>
+      <div>
+        <button type="submit" style="border:1px solid var(--accent);background:rgba(57,255,196,.07);
+                color:var(--accent);border-radius:5px;padding:7px 20px;font-size:12px;
+                cursor:pointer;font-family:inherit">Сохранить</button>
+      </div>
     </form>
   </div>
 </details>

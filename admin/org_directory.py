@@ -63,6 +63,7 @@ def ensure_schema(conn):
             first_seen     TEXT,
             last_seen      TEXT,
             needs_review   INTEGER DEFAULT 0,
+            notes          TEXT,
             PRIMARY KEY (role, org_key)
         )
     ''')
@@ -140,6 +141,39 @@ def merge_org(conn, role, src_key, dst_key):
     ''', (dst_key, role, src_key))
     conn.execute('DELETE FROM org_aliases WHERE role=? AND org_key=?', (role, src_key))
     conn.execute('DELETE FROM org_directory WHERE role=? AND org_key=?', (role, src_key))
+    conn.commit()
+
+
+def recompute_stats(conn):
+    """Пересчитывает objects_count, overdue_pct, bad_pct из текущих complexes.
+    Рейтинг (rating) — только ручной, не трогаем.
+    """
+    from collections import defaultdict
+    for role, name_col, inn_col in (
+        ('developer', 'developer_name', 'developer_inn'),
+        ('contractor', 'contractor_name', 'contractor_inn'),
+    ):
+        counts = defaultdict(lambda: [0, 0, 0])  # [total, overdue, bad]
+        for name, inn, is_overdue, status in conn.execute(
+            f'SELECT {name_col}, {inn_col}, is_overdue, case_status_clean FROM complexes'
+        ):
+            key, _ = org_key_for(name, inn)
+            if not key:
+                continue
+            counts[key][0] += 1
+            if is_overdue:
+                counts[key][1] += 1
+            if status in ('stopped', 'cancelled'):
+                counts[key][2] += 1
+        conn.execute('UPDATE org_directory SET objects_count=0 WHERE role=?', (role,))
+        for key, (total, overdue, bad) in counts.items():
+            if total == 0:
+                continue
+            conn.execute('''
+                UPDATE org_directory
+                SET objects_count=?, overdue_pct=?, bad_pct=?
+                WHERE role=? AND org_key=?
+            ''', (total, round(overdue / total * 100, 1), round(bad / total * 100, 1), role, key))
     conn.commit()
 
 

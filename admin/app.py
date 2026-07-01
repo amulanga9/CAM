@@ -18,7 +18,7 @@ from flask import Flask, g, redirect, render_template, request, url_for
 import ariza_parser
 import object_info_parser
 from import_master import FIELD_ALIASES, build_manual_schema, migrate_complexes, to_float
-from org_directory import ensure_schema as ensure_dir_schema, merge_org, normalize_inn, org_key_for, rebuild_objects_count, resolve_org
+from org_directory import ensure_schema as ensure_dir_schema, merge_org, normalize_inn, org_key_for, rebuild_objects_count, recompute_stats, resolve_org
 
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
 MANUAL_DB_PATH = Path(__file__).parent / 'cam_manual.db'
@@ -712,11 +712,11 @@ def directory_detail(role, org_key):
 def directory_edit(role, org_key):
     db = get_db()
     name_canonical = request.form.get('name_canonical', '').strip()
-    rating = request.form.get('rating', '').strip() or None
+    notes = request.form.get('notes', '').strip() or None
     if name_canonical:
         db.execute(
-            'UPDATE org_directory SET name_canonical=?, rating=? WHERE role=? AND org_key=?',
-            (name_canonical, rating, role, org_key)
+            'UPDATE org_directory SET name_canonical=?, notes=? WHERE role=? AND org_key=?',
+            (name_canonical, notes, role, org_key)
         )
         db.commit()
     return redirect(url_for('directory_detail', role=role, org_key=org_key))
@@ -752,10 +752,23 @@ def directory_merge(role, org_key):
 
 @app.route('/directory/rebuild', methods=['POST'])
 def directory_rebuild():
-    """Перестроить objects_count по текущим complexes."""
+    """Пересчитать статистику (objects_count, overdue_pct, bad_pct) из complexes."""
     db = get_db()
-    rebuild_objects_count(db)
-    return redirect(url_for('directory'))
+    recompute_stats(db)
+    return redirect(request.referrer or url_for('directory'))
+
+
+@app.route('/directory/<role>/<path:org_key>/rating', methods=['POST'])
+def directory_set_rating(role, org_key):
+    """Быстрая установка рейтинга (из списка, инлайн)."""
+    db = get_db()
+    rating = request.form.get('rating', '').strip() or None
+    db.execute(
+        'UPDATE org_directory SET rating=? WHERE role=? AND org_key=?',
+        (rating, role, org_key)
+    )
+    db.commit()
+    return redirect(request.referrer or url_for('directory', role=role))
 
 
 if __name__ == '__main__':
