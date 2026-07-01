@@ -229,4 +229,49 @@
 
 </div>
 
+{# ── Покрытие рейтингов ──────────────────────────────────────────────────── #}
+{% set rated_pct = ((dir_rated / dir_total * 100) | round | int) if dir_total else 0 %}
+<div class="card" style="margin-bottom:20px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <h3 style="margin:0">Покрытие рейтингов (справочник)</h3>
+    <a href="{{ url_for('directory') }}" class="btn" style="font-size:11px">
+      Заполнить →
+    </a>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:16px">
+    <div>
+      <div style="font-size:26px;font-weight:700;
+                  color:{% if rated_pct>=60 %}var(--good){% elif rated_pct>=20 %}var(--warn){% else %}var(--bad){% endif %}">
+        {{ dir_rated }}
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">С рейтингом</div>
+    </div>
+    <div>
+      <div style="font-size:26px;font-weight:700;color:var(--text-dim)">{{ dir_total - dir_rated }}</div>
+      <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">Без рейтинга</div>
+    </div>
+    <div>
+      <div style="font-size:26px;font-weight:700;color:var(--text-bright)">{{ dir_total }}</div>
+      <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">Всего в справочнике</div>
+    </div>
+    <div>
+      <div style="font-size:26px;font-weight:700;
+                  color:{% if rated_pct>=60 %}var(--good){% elif rated_pct>=20 %}var(--warn){% else %}var(--bad){% endif %}">
+        {{ rated_pct }}%
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">Покрытие</div>
+    </div>
+  </div>
+  <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+    <div style="height:100%;width:{{ rated_pct }}%;border-radius:3px;
+                background:{% if rated_pct>=60 %}var(--good){% elif rated_pct>=20 %}var(--warn){% else %}var(--bad){% endif %}">
+    </div>
+  </div>
+  <div style="margin-top:10px;font-size:11px;color:var(--text-dim)">
+    Рейтинг ставится вручную в справочнике (A/B/C/D).
+    В перспективе — подтягивать автоматически с
+    <span style="color:var(--accent2)">reyting.mc.uz</span> по ИНН.
+  </div>
+</div>
+
 {% endblock %}

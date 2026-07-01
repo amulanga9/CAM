@@ -214,6 +214,9 @@ def dashboard():
         'SELECT COUNT(*) FROM org_directory WHERE needs_review=0'
     ).fetchone()[0]
     dir_total = db.execute('SELECT COUNT(*) FROM org_directory').fetchone()[0]
+    dir_rated = db.execute(
+        'SELECT COUNT(*) FROM org_directory WHERE rating IS NOT NULL AND rating != ""'
+    ).fetchone()[0]
 
     return render_template(
         'dashboard.html',
@@ -225,7 +228,7 @@ def dashboard():
         docs_coverage=docs_coverage,
         dir_stats=dir_stats, affil_multi=affil_multi,
         affil_groups_count=affil_groups_count,
-        dir_confirmed=dir_confirmed, dir_total=dir_total,
+        dir_confirmed=dir_confirmed, dir_total=dir_total, dir_rated=dir_rated,
     )
 
 
