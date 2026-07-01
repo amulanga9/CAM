@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ЖК — CAM Досье</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+:root{
+  --bg:#0c0e14;--surface:#141822;--surface-2:#1b2029;
+  --border:#262b3a;--border-2:#343b50;
+  --text:#e9ebf2;--text-dim:#8a90a8;--text-faint:#565c72;
+  --high:#ef5b4e;--high-soft:rgba(239,91,78,.12);
+  --med:#eba23c;--med-soft:rgba(235,162,60,.12);
+  --low:#49b885;--low-soft:rgba(73,184,133,.12);
+  --accent:#6f8cff;--accent-soft:rgba(111,140,255,.12);
+  --font-ui:'Manrope',sans-serif;--font-data:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:14px;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-ui);font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.brand{font-size:18px;font-weight:800;color:#fff;text-decoration:none;}
+.brand .dot{color:var(--accent);}
+.back{font-size:12px;color:var(--text-dim);text-decoration:none;padding:5px 12px;border:1px solid var(--border-2);border-radius:6px;transition:.15s;}
+.back:hover{border-color:var(--accent);color:var(--accent);}
+.cam-id{font-family:var(--font-data);font-size:11px;color:var(--text-faint);margin-left:auto;}
+main{max-width:980px;margin:24px auto;padding:0 16px;}
+.hero{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:16px;}
+.hero-name{font-size:18px;font-weight:700;color:#fff;line-height:1.35;margin-bottom:8px;}
+.hero-meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
+.tag{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11.5px;font-weight:600;letter-spacing:.02em;}
+.tag.high{background:var(--high-soft);color:var(--high);border:1px solid rgba(239,91,78,.25);}
+.tag.med{background:var(--med-soft);color:var(--med);border:1px solid rgba(235,162,60,.25);}
+.tag.low{background:var(--low-soft);color:var(--low);border:1px solid rgba(73,184,133,.25);}
+.tag.neutral{background:var(--surface-2);color:var(--text-dim);border:1px solid var(--border-2);}
+.tag.accent{background:var(--accent-soft);color:var(--accent);border:1px solid rgba(111,140,255,.25);}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px;}
+.stat-card{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+.stat-label{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+.stat-val{font-family:var(--font-data);font-size:17px;font-weight:600;color:#fff;}
+.stat-val.bad{color:var(--high);}
+.stat-val.warn{color:var(--med);}
+.stat-val.good{color:var(--low);}
+.stat-note{font-size:10px;color:var(--text-faint);margin-top:2px;}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:14px;}
+.section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text-dim);margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.kv-grid{display:grid;grid-template-columns:160px 1fr;gap:6px 12px;}
+.kv-label{font-size:11.5px;color:var(--text-dim);align-self:start;padding-top:1px;}
+.kv-val{font-size:12.5px;color:var(--text);}
+.kv-val a{color:var(--accent);text-decoration:none;}
+.kv-val a:hover{text-decoration:underline;}
+.org-block{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;flex:1;min-width:220px;}
+.org-role{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);margin-bottom:4px;}
+.org-name{font-size:13px;font-weight:600;color:#fff;margin-bottom:4px;}
+.org-inn{font-family:var(--font-data);font-size:11px;color:var(--text-dim);}
+.rating-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;font-size:13px;font-weight:700;margin-left:8px;vertical-align:middle;}
+.rating-A{background:rgba(73,184,133,.15);color:var(--low);border:1px solid rgba(73,184,133,.3);}
+.rating-B{background:rgba(111,140,255,.15);color:var(--accent);border:1px solid rgba(111,140,255,.3);}
+.rating-C{background:rgba(235,162,60,.15);color:var(--med);border:1px solid rgba(235,162,60,.3);}
+.rating-D{background:rgba(239,91,78,.15);color:var(--high);border:1px solid rgba(239,91,78,.3);}
+.orgs-row{display:flex;gap:12px;flex-wrap:wrap;}
+#map{height:260px;border-radius:8px;margin-top:12px;border:1px solid var(--border);}
+.review-item{padding:10px 0;border-bottom:1px solid var(--border);}
+.review-item:last-child{border-bottom:none;}
+.review-verdict{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;}
+.review-comment{font-size:12.5px;color:var(--text);}
+.review-date{font-size:10.5px;color:var(--text-faint);margin-top:3px;}
+.delay-flag{display:inline-flex;gap:6px;align-items:flex-start;padding:8px 12px;border-radius:6px;background:var(--med-soft);border:1px solid rgba(235,162,60,.2);margin-bottom:6px;width:100%;}
+.delay-flag .flag-icon{font-size:14px;line-height:1;}
+.flag-text{font-size:12px;}
+.flag-note{font-size:11px;color:var(--text-dim);margin-top:2px;}
+.empty{color:var(--text-faint);font-size:12px;font-style:italic;}
+#loading{text-align:center;padding:60px;color:var(--text-dim);}
+#error{display:none;text-align:center;padding:60px;color:var(--high);}
+</style>
+</head>
+<body>
+<div class="header">
+  <a href="index.html" class="brand">CAM<span class="dot">.</span>uz</a>
+  <a href="index.html" class="back">← Все объекты</a>
+  <span class="cam-id" id="header-id"></span>
+</div>
+
+<div id="loading">Загрузка данных…</div>
+<div id="error">Объект не найден.</div>
+
+<main id="main" style="display:none">
+
+  <div class="hero">
+    <div class="hero-name" id="hero-name"></div>
+    <div class="hero-meta" id="hero-meta"></div>
+    <div class="stats-grid" id="stats-grid"></div>
+    <div class="orgs-row" id="orgs-row"></div>
+  </div>
+
+  <div class="section" id="section-info">
+    <div class="section-title">Сведения об объекте</div>
+    <div class="kv-grid" id="kv-info"></div>
+  </div>
+
+  <div class="section" id="section-map" style="display:none">
+    <div class="section-title">Расположение</div>
+    <div id="map"></div>
+  </div>
+
+  <div class="section" id="section-reviews" style="display:none">
+    <div class="section-title">Проверки</div>
+    <div id="reviews-body"></div>
+  </div>
+
+  <div class="section" id="section-flags" style="display:none">
+    <div class="section-title">Тревожные сигналы</div>
+    <div id="flags-body"></div>
+  </div>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const STATUS_LABELS = {
+  delivered:'Сдан',in_progress:'Строится',unclear:'Неясно',
+  frozen:'Заморожен',stopped:'Остановлен',cancelled:'Отменён',rebranded:'Ребрендинг',excluded:'Исключён'
+};
+const STATUS_TAG = {
+  delivered:'low',in_progress:'accent',unclear:'neutral',
+  frozen:'high',stopped:'high',cancelled:'neutral',rebranded:'neutral',excluded:'neutral'
+};
+
+function esc(s){ return s==null?'—':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function ratingBadge(r){
+  if(!r||!['A','B','C','D'].includes(r)) return '';
+  return `<span class="rating-badge rating-${r}">${r}</span>`;
+}
+
+function tag(text,cls){
+  return `<span class="tag ${cls||'neutral'}">${text}</span>`;
+}
+
+function kv(label,val){
+  return `<span class="kv-label">${label}</span><span class="kv-val">${val}</span>`;
+}
+
+function formatDate(s){
+  if(!s) return '—';
+  return s.split('T')[0];
+}
+
+function renderOverdue(d){
+  if(d.is_overdue && d.days_overdue){
+    return `<div class="stat-val bad">${d.days_overdue}</div><div class="stat-note">дней просрочки</div>`;
+  }
+  if(d.deadline){
+    const today=new Date(), dl=new Date(d.deadline);
+    const diff=Math.round((dl-today)/86400000);
+    if(diff>0) return `<div class="stat-val good">${diff}</div><div class="stat-note">дней до сдачи</div>`;
+    return `<div class="stat-val warn">Срок истёк</div>`;
+  }
+  return '<div class="stat-val">—</div>';
+}
+
+async function load(){
+  const params=new URLSearchParams(location.search);
+  const id=params.get('id');
+  if(!id){ showError('Не указан id объекта'); return; }
+  document.getElementById('header-id').textContent=id;
+  document.title=`${id} — CAM Досье`;
+
+  let d;
+  try{
+    const resp=await fetch(`data/complex/${id}.json`);
+    if(!resp.ok) throw new Error(resp.status);
+    d=await resp.json();
+  }catch(e){
+    showError(`Объект «${id}» не найден (${e.message})`);
+    return;
+  }
+
+  render(d);
+}
+
+function render(d){
+  document.getElementById('loading').style.display='none';
+  document.getElementById('main').style.display='';
+
+  // hero name
+  document.getElementById('hero-name').textContent = d.project_name||d.cam_id;
+
+  // tags row
+  const metaEl=document.getElementById('hero-meta');
+  const status=d.case_status_clean||'unclear';
+  metaEl.innerHTML=[
+    tag(STATUS_LABELS[status]||status, STATUS_TAG[status]),
+    d.district_name ? tag(d.district_name) : '',
+    d.dom_class ? tag(d.dom_class,'accent') : '',
+    d.brand_name ? tag('🏷 '+d.brand_name,'accent') : '',
+    d.is_overdue ? tag('Просрочка','high') : '',
+    d.needs_review ? tag('На проверке','med') : '',
+  ].join('');
+
+  // stats
+  const sg=document.getElementById('stats-grid');
+  sg.innerHTML=[
+    `<div class="stat-card"><div class="stat-label">Дедлайн</div><div class="stat-val" style="font-size:14px">${formatDate(d.deadline)||'—'}</div></div>`,
+    `<div class="stat-card"><div class="stat-label">Просрочка</div>${renderOverdue(d)}</div>`,
+    d.price_per_m2_uzs ? `<div class="stat-card"><div class="stat-label">Цена м²</div><div class="stat-val" style="font-size:14px">${Number(d.price_per_m2_uzs).toLocaleString('ru')}</div><div class="stat-note">сум/м²</div></div>` : '',
+  ].join('');
+
+  // orgs
+  const orgsEl=document.getElementById('orgs-row');
+  const orgHtml=(role,name,inn,dirRating,dirName,legacyRating)=>{
+    const rating=dirRating||null;
+    return `<div class="org-block">
+      <div class="org-role">${role}</div>
+      <div class="org-name">${esc(dirName||name||'—')}${ratingBadge(rating)}</div>
+      ${inn?`<div class="org-inn">ИНН ${esc(inn)}</div>`:''}
+    </div>`;
+  };
+  orgsEl.innerHTML=[
+    orgHtml('Застройщик',d.developer_name,d.developer_inn,d.dev_dir_rating,d.dev_dir_name,d.developer_rating),
+    (d.contractor_name||d.contractor_inn)?orgHtml('Подрядчик',d.contractor_name,d.contractor_inn,d.cont_dir_rating,d.cont_dir_name,d.contractor_rating):'',
+  ].join('');
+
+  // kv info
+  const kvEl=document.getElementById('kv-info');
+  const rows=[
+    kv('ID',`<span style="font-family:var(--font-data)">${esc(d.cam_id)}</span>`),
+    kv('Адрес', esc(d.address)),
+    kv('Район', esc(d.district_name)),
+    kv('Статус', esc(STATUS_LABELS[d.case_status_clean]||d.case_status_clean)),
+    kv('Дедлайн', formatDate(d.deadline)),
+    kv('Начало строительства', formatDate(d.created_at)),
+    d.delivered_year ? kv('Год сдачи', d.delivered_year) : '',
+    d.holding_name ? kv('Холдинг', esc(d.holding_name)) : '',
+    d.brand_name ? kv('Бренд', esc(d.brand_name)) : '',
+    d.dom_class ? kv('Класс жилья', esc(d.dom_class)) : '',
+    d.price_per_m2_uzs ? kv('Цена м²', Number(d.price_per_m2_uzs).toLocaleString('ru')+' сум') : '',
+    d.listing_url ? kv('Объявление', `<a href="${esc(d.listing_url)}" target="_blank" rel="noopener">перейти ↗</a>`) : '',
+    kv('Источник', esc(d.source_sheet)),
+  ].filter(Boolean);
+  kvEl.innerHTML=rows.join('');
+
+  // map
+  if(d.lat && d.lng){
+    document.getElementById('section-map').style.display='';
+    setTimeout(()=>{
+      const map=L.map('map').setView([d.lat,d.lng],15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+        attribution:'© OSM contributors',maxZoom:19
+      }).addTo(map);
+      L.marker([d.lat,d.lng]).addTo(map)
+       .bindPopup(d.project_name||d.cam_id).openPopup();
+    },0);
+  }
+
+  // reviews
+  const revs=d.reviews||[];
+  if(revs.length){
+    document.getElementById('section-reviews').style.display='';
+    const VCLS={high:'color:var(--high)',med:'color:var(--med)',low:'color:var(--low)',neutral:'color:var(--text-dim)'};
+    const VMAP={high:'Высокий риск',med:'Средний риск',low:'Низкий риск',neutral:'Нейтрально'};
+    document.getElementById('reviews-body').innerHTML=revs.map(r=>`
+      <div class="review-item">
+        <div class="review-verdict" style="${VCLS[r.verdict]||''}">${VMAP[r.verdict]||esc(r.verdict)}</div>
+        ${r.comment?`<div class="review-comment">${esc(r.comment)}</div>`:''}
+        <div class="review-date">${formatDate(r.reviewed_at)}</div>
+      </div>`).join('');
+  }
+
+  // delay flags
+  const flags=d.delay_flags||[];
+  if(flags.length){
+    document.getElementById('section-flags').style.display='';
+    document.getElementById('flags-body').innerHTML=flags.map(f=>`
+      <div class="delay-flag">
+        <span class="flag-icon">⚠</span>
+        <div><div class="flag-text">${esc(f.flag)}</div>${f.note?`<div class="flag-note">${esc(f.note)}</div>`:''}</div>
+      </div>`).join('');
+  }
+}
+
+function showError(msg){
+  document.getElementById('loading').style.display='none';
+  const e=document.getElementById('error');
+  e.textContent=msg;
+  e.style.display='';
+}
+
+load();
+</script>
+</body>
+</html>

@@ -13,7 +13,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, g, redirect, render_template, request, url_for
+from flask import Flask, g, redirect, render_template, request, session, url_for
 
 import ariza_parser
 import object_info_parser
@@ -771,7 +771,6 @@ def directory_fetch_reyting(role, org_key):
     else:
         flash_msg = f"Ошибка: {(result or {}).get('error', 'нет ответа')}"
     # сохраняем flash в session для показа на странице
-    from flask import session
     session['flash'] = flash_msg
     return redirect(url_for('directory_detail', role=role, org_key=org_key))
 
@@ -783,7 +782,6 @@ def directory_bulk_reyting():
     role = request.form.get('role') or None
     limit = int(request.form.get('limit') or 0) or None
     result = reyting_parser.bulk_fetch(db, role=role, delay=0.5, limit=limit)
-    from flask import session
     session['flash'] = (
         f"reyting.mc.uz: обновлено {result['ok']}, "
         f"не найдено {result['not_found']}, ошибок {result['errors']} "
@@ -811,6 +809,16 @@ def directory_set_rating(role, org_key):
     )
     db.commit()
     return redirect(request.referrer or url_for('directory', role=role))
+
+
+@app.route('/export-public', methods=['POST'])
+def export_public():
+    """Экспортирует data/complexes.json и data/complex/<id>.json для GitHub Pages."""
+    import export_public as ep
+    result = ep.export()
+    g.db.execute("SELECT 1")  # keep connection alive
+    session['flash'] = f"Экспортировано {result['total']} объектов → data/"
+    return redirect(request.referrer or url_for('dashboard'))
 
 
 if __name__ == '__main__':

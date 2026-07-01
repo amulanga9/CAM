@@ -17467,8 +17467,14 @@ function showDemoReport(id) {
           ? `<a href="${d.domtut_url}" target="_blank" class="source-tag" title="Объявление застройщика">domtut.uz →</a>`
           : '<a href="https://domtut.uz" target="_blank" class="source-tag">domtut.uz</a>'}
       </div>
-      <div style="font-size:10px;color:var(--text-faint);margin-top:6px;line-height:1.7">
-        GBM · 18 факторов · AUC 0.87 · Июнь 2026 · CAM ID: ${d.cam_id}
+      <div style="font-size:10px;color:var(--text-faint);margin-top:6px;line-height:1.7;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+        <span>GBM · 18 факторов · AUC 0.87 · Июнь 2026 · CAM ID: ${d.cam_id}</span>
+        <a href="complex.html?id=${d.cam_id}" target="_blank"
+           style="font-size:11px;color:var(--accent);text-decoration:none;
+                  border:1px solid rgba(111,140,255,.3);border-radius:5px;padding:3px 9px;
+                  background:rgba(111,140,255,.07);white-space:nowrap">
+          Полное досье →
+        </a>
       </div>
     </div>
   `;
