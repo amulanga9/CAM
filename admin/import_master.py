@@ -367,6 +367,18 @@ def build_manual_schema(conn):
             conn.execute(f'ALTER TABLE manual.delay_flags ADD COLUMN {col} TEXT')
         except sqlite3.OperationalError:
             pass
+    conn.execute('''
+    CREATE TABLE IF NOT EXISTS manual.complex_proofs (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        cam_id          TEXT NOT NULL,
+        proof_type      TEXT,
+        proof_doc_number TEXT,
+        proof_ariza     TEXT,
+        proof_verify_url TEXT,
+        proof_extracted TEXT,
+        added_at        TEXT
+    );
+    ''')
     _migrate_manual_overrides(conn)
     _migrate_manual_rebrands(conn)
 
