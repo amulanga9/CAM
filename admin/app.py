@@ -118,18 +118,115 @@ def close_db(exc):
 @app.route('/')
 def dashboard():
     db = get_db()
-    stats = db.execute('''
-        SELECT
-            COUNT(*) AS total,
-            SUM(needs_review) AS needs_review,
-            SUM(CASE WHEN cam_id IN (SELECT cam_id FROM manual.reviews) THEN 1 ELSE 0 END) AS reviewed
-        FROM complexes
-    ''').fetchone()
-    by_status = db.execute('''
-        SELECT case_status_clean, COUNT(*) AS n
-        FROM complexes GROUP BY case_status_clean ORDER BY n DESC
-    ''').fetchall()
-    return render_template('dashboard.html', stats=stats, by_status=by_status)
+
+    # ── Объекты ──────────────────────────────────────────────────────────────
+    total = db.execute('SELECT COUNT(*) FROM complexes').fetchone()[0]
+    by_status = db.execute(
+        'SELECT case_status_clean, COUNT(*) n FROM complexes '
+        'GROUP BY case_status_clean ORDER BY n DESC'
+    ).fetchall()
+    needs_review = db.execute(
+        'SELECT COUNT(*) FROM complexes WHERE needs_review=1'
+    ).fetchone()[0]
+    reviewed = db.execute(
+        'SELECT COUNT(*) FROM manual.reviews'
+    ).fetchone()[0]
+
+    # источники (GASN авто vs Excel-мастер vs ручные MAN-)
+    by_source = db.execute(
+        "SELECT source_sheet, COUNT(*) n FROM complexes GROUP BY source_sheet ORDER BY n DESC"
+    ).fetchall()
+
+    # ── Покрытие авто-полей (портал) ─────────────────────────────────────────
+    def pct_filled(col, extra_filter=''):
+        n = db.execute(
+            f"SELECT COUNT(*) FROM complexes "
+            f"WHERE {col} IS NOT NULL AND CAST({col} AS TEXT) NOT IN ('','0','None') {extra_filter}"
+        ).fetchone()[0]
+        return n, round(n * 100 / total) if total else 0
+
+    portal_coverage = [
+        ('ИНН застройщика',  *pct_filled('developer_inn')),
+        ('Подрядчик',        *pct_filled('contractor_name')),
+        ('ИНН подрядчика',   *pct_filled('contractor_inn')),
+        ('Дедлайн',          *pct_filled('deadline')),
+        ('Координаты',       *pct_filled('lat')),
+    ]
+
+    # ── Покрытие коммерческого слоя ──────────────────────────────────────────
+    commercial_coverage = [
+        ('Бренд',       *pct_filled('brand_name')),
+        ('Холдинг',     *pct_filled('holding_name')),
+        ('Цена м²',     *pct_filled('price_per_m2_uzs')),
+    ]
+    overrides_count = db.execute('SELECT COUNT(*) FROM manual.overrides').fetchone()[0]
+    rebrands_count  = db.execute('SELECT COUNT(*) FROM manual.rebrands').fetchone()[0]
+
+    # ── Документы (delay_flags) ───────────────────────────────────────────────
+    def df_filled(col):
+        n = db.execute(
+            f"SELECT COUNT(*) FROM manual.delay_flags "
+            f"WHERE {col} IS NOT NULL AND {col}!=''"
+        ).fetchone()[0]
+        return n, round(n * 100 / total) if total else 0
+
+    docs_coverage = [
+        ('Разрешение (permit_date)',      *df_filled('permit_date')),
+        ('Дедлайн портала',               *df_filled('portal_deadline')),
+        ('Номер экспертизы',              *df_filled('expertise_number')),
+        ('Номер АПЗ',                     *df_filled('apz_number')),
+        ('Номер заявки (АРИЗа)',          *df_filled('application_number')),
+        ('PDF-выписка (doc_hash)',         *df_filled('doc_hash')),
+    ]
+
+    # ── Справочник организаций ───────────────────────────────────────────────
+    dir_stats = {
+        r[0]: {'total': r[1], 'with_inn': r[2], 'review': r[3], 'aliases': r[4]}
+        for r in db.execute('''
+            SELECT d.role,
+                   COUNT(*) total,
+                   SUM(CASE WHEN d.key_type='inn' THEN 1 ELSE 0 END) with_inn,
+                   SUM(d.needs_review) review,
+                   (SELECT COUNT(*) FROM org_aliases a WHERE a.role=d.role) aliases
+            FROM org_directory d GROUP BY d.role
+        ''')
+    }
+
+    # аффилиация — уникальных ИНН застройщиков с >1 объектом (возможные группы)
+    affil_multi = db.execute(
+        "SELECT COUNT(*) FROM ("
+        "  SELECT developer_inn FROM complexes "
+        "  WHERE developer_inn IS NOT NULL AND developer_inn!='' "
+        "  GROUP BY developer_inn HAVING COUNT(*)>1"
+        ")"
+    ).fetchone()[0]
+    affil_groups_count = db.execute(
+        'SELECT COUNT(*) FROM (SELECT DISTINCT group_name FROM affiliation_groups)'
+        if False else 'SELECT 0'  # заглушка если таблицы нет
+    ).fetchone()[0]
+    try:
+        affil_groups_count = len(get_affiliation_groups(db))
+    except Exception:
+        affil_groups_count = 0
+
+    # ── org_directory — подтверждено vs всего ────────────────────────────────
+    dir_confirmed = db.execute(
+        'SELECT COUNT(*) FROM org_directory WHERE needs_review=0'
+    ).fetchone()[0]
+    dir_total = db.execute('SELECT COUNT(*) FROM org_directory').fetchone()[0]
+
+    return render_template(
+        'dashboard.html',
+        total=total, by_status=by_status, needs_review=needs_review,
+        reviewed=reviewed, by_source=by_source,
+        portal_coverage=portal_coverage,
+        commercial_coverage=commercial_coverage,
+        overrides_count=overrides_count, rebrands_count=rebrands_count,
+        docs_coverage=docs_coverage,
+        dir_stats=dir_stats, affil_multi=affil_multi,
+        affil_groups_count=affil_groups_count,
+        dir_confirmed=dir_confirmed, dir_total=dir_total,
+    )
 
 
 @app.route('/review')

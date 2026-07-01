@@ -1,20 +1,232 @@
 {% extends 'base.html' %}
+{% block title %}Дашборд — CAM admin{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="stat"><b>{{ stats.total }}</b><span>Всего объектов</span></div>
-  <div class="stat"><b>{{ stats.needs_review }}</b><span>Требуют проверки</span></div>
-  <div class="stat"><b>{{ stats.reviewed }}</b><span>Уже проверено</span></div>
+
+{# ── макро: прогресс-бар покрытия ──────────────────────────────────────── #}
+{% macro coverage_row(label, n, pct) %}
+<div style="margin-bottom:10px">
+  <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+    <span style="font-size:12px;color:var(--text)">{{ label }}</span>
+    <span style="font-size:11px;font-weight:700;
+                 color:{% if pct>=80 %}var(--good){% elif pct>=40 %}var(--warn){% else %}var(--bad){% endif %}">
+      {{ n }}&thinsp;<span style="color:var(--text-dim);font-weight:400">/ {{ total }}</span>
+      &nbsp;{{ pct }}%
+    </span>
+  </div>
+  <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+    <div style="height:100%;width:{{ pct }}%;border-radius:2px;transition:width .4s;
+                background:{% if pct>=80 %}var(--good){% elif pct>=40 %}var(--warn){% else %}var(--bad){% endif %}">
+    </div>
+  </div>
 </div>
-<div class="card">
-  <h3>По статусам</h3>
-  <table>
-    <tr><th>Статус</th><th>Кол-во</th></tr>
-    {% for s in by_status %}
-    <tr><td><span class="badge {{ s.case_status_clean }}">{{ s.case_status_clean }}</span></td><td>{{ s.n }}</td></tr>
+{% endmacro %}
+
+{# ── строка дашборда ────────────────────────────────────────────────────── #}
+{% macro dash_row(cols) %}
+<div style="display:grid;grid-template-columns:{{ 'repeat(%d,1fr)'|format(cols|length) }};gap:12px;margin-bottom:12px">
+  {{ caller() }}
+</div>
+{% endmacro %}
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# 1. Главные числа                                                          #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+
+  <div class="card" style="margin:0">
+    <div class="stat"><b>{{ total }}</b><span>Всего объектов</span></div>
+    <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:5px">
+      {% for s in by_status %}
+        <span class="badge {{ s.case_status_clean or 'unclear' }}" style="font-size:10px">
+          {{ s.case_status_clean or '?' }}&nbsp;{{ s.n }}
+        </span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card" style="margin:0">
+    <div class="stat">
+      <b style="color:{% if needs_review>0 %}var(--warn){% else %}var(--good){% endif %}">
+        {{ needs_review }}
+      </b>
+      <span>Требуют проверки</span>
+    </div>
+    <div class="stat" style="margin-top:4px">
+      <b style="font-size:16px;color:var(--text-dim)">{{ reviewed }}</b>
+      <span>Проверено (reviews)</span>
+    </div>
+    {% if needs_review %}
+      <div style="margin-top:10px">
+        <a class="btn" href="{{ url_for('review_queue') }}" style="font-size:11px">
+          Открыть очередь →
+        </a>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin:0">
+    <h3 style="font-size:11px;margin-bottom:8px">Источники</h3>
+    {% for s in by_source %}
+    <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px">
+      <span style="color:var(--text-dim)">{{ s.source_sheet or '—' }}</span>
+      <b>{{ s.n }}</b>
+    </div>
     {% endfor %}
-  </table>
+  </div>
+
+  <div class="card" style="margin:0">
+    <div class="stat">
+      <b style="color:var(--accent2)">{{ dir_confirmed }}</b>
+      <span>Орг. подтверждено</span>
+    </div>
+    <div class="stat" style="margin-top:4px">
+      <b style="font-size:16px;color:var(--text-dim)">{{ dir_total }}</b>
+      <span>Всего в справочнике</span>
+    </div>
+    <div style="margin-top:8px">
+      <div style="height:4px;background:var(--border);border-radius:2px">
+        <div style="height:100%;width:{{ (dir_confirmed/dir_total*100)|round|int if dir_total else 0 }}%;
+                    background:var(--accent2);border-radius:2px"></div>
+      </div>
+    </div>
+  </div>
+
 </div>
-{% if stats.needs_review %}
-<p><a class="btn" href="{{ url_for('review_queue') }}">Открыть очередь проверки ({{ stats.needs_review }}) →</a></p>
-{% endif %}
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# 2. Покрытие данных                                                        #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+
+  {# Портальные поля (автоматика) #}
+  <div class="card" style="margin:0">
+    <h3>Портал / авто</h3>
+    {% for label, n, pct in portal_coverage %}
+      {{ coverage_row(label, n, pct) }}
+    {% endfor %}
+  </div>
+
+  {# Коммерческий слой #}
+  <div class="card" style="margin:0">
+    <h3>Коммерческий слой</h3>
+    {% for label, n, pct in commercial_coverage %}
+      {{ coverage_row(label, n, pct) }}
+    {% endfor %}
+    <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px;
+                display:flex;gap:16px">
+      <div>
+        <span style="font-size:20px;font-weight:700;color:var(--text-bright)">{{ overrides_count }}</span>
+        <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">Правок (overrides)</div>
+      </div>
+      <div>
+        <span style="font-size:20px;font-weight:700;color:var(--text-bright)">{{ rebrands_count }}</span>
+        <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">Ребрендов</div>
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <a class="btn" href="{{ url_for('new_complex') }}" style="font-size:11px">+ Добавить объект</a>
+    </div>
+  </div>
+
+  {# Документы / PDF #}
+  <div class="card" style="margin:0">
+    <h3>Документы (delay_flags)</h3>
+    {% for label, n, pct in docs_coverage %}
+      {{ coverage_row(label, n, pct) }}
+    {% endfor %}
+    {% if docs_coverage and docs_coverage[0][1] == 0 %}
+    <p style="font-size:11px;color:var(--text-dim);margin-top:10px;line-height:1.6">
+      Документы заполняются через карточку объекта:<br>
+      кнопка «Получить с портала» или загрузка PDF.
+    </p>
+    {% endif %}
+  </div>
+
+</div>
+
+{# ══════════════════════════════════════════════════════════════════════════ #}
+{# 3. Справочник организаций                                                 #}
+{# ══════════════════════════════════════════════════════════════════════════ #}
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+
+  {% for role_key, role_label in (('developer','Застройщики'),('contractor','Подрядчики')) %}
+  {% set d = dir_stats.get(role_key, {}) %}
+  <div class="card" style="margin:0">
+    <h3 style="display:flex;justify-content:space-between;align-items:center">
+      {{ role_label }}
+      <a href="{{ url_for('directory', role=role_key) }}"
+         style="font-size:11px;font-weight:400;color:var(--accent2);text-transform:none">
+        Открыть →
+      </a>
+    </h3>
+
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px">
+      <div>
+        <div style="font-size:22px;font-weight:700;color:var(--text-bright)">{{ d.get('total',0) }}</div>
+        <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">Всего карточек</div>
+      </div>
+      <div>
+        <div style="font-size:22px;font-weight:700;color:var(--accent2)">{{ d.get('with_inn',0) }}</div>
+        <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">С ИНН</div>
+      </div>
+      <div>
+        <div style="font-size:22px;font-weight:700;
+                    color:{% if d.get('review',0)>0 %}var(--warn){% else %}var(--good){% endif %}">
+          {{ d.get('review',0) }}
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">На проверке</div>
+      </div>
+      <div>
+        <div style="font-size:22px;font-weight:700;color:var(--text-dim)">{{ d.get('aliases',0) }}</div>
+        <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">Алиасов</div>
+      </div>
+    </div>
+
+    {# ИНН покрытие mini-bar #}
+    {% set inn_pct = ((d.get('with_inn',0) / d.get('total',1)) * 100)|round|int %}
+    <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">
+      Покрытие ИНН
+    </div>
+    <div style="height:4px;background:var(--border);border-radius:2px">
+      <div style="height:100%;width:{{ inn_pct }}%;border-radius:2px;
+                  background:{% if inn_pct>=80 %}var(--good){% elif inn_pct>=50 %}var(--warn){% else %}var(--bad){% endif %}">
+      </div>
+    </div>
+    <div style="font-size:11px;font-weight:700;margin-top:4px;
+                color:{% if inn_pct>=80 %}var(--good){% elif inn_pct>=50 %}var(--warn){% else %}var(--bad){% endif %}">
+      {{ inn_pct }}%
+    </div>
+
+    {% if d.get('review',0) %}
+    <div style="margin-top:10px">
+      <a class="btn" href="{{ url_for('directory', role=role_key, review='1') }}"
+         style="font-size:11px;border-color:var(--warn);color:var(--warn)">
+        ! Проверить ({{ d.get('review',0) }}) →
+      </a>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {# Аффилиации #}
+  <div class="card" style="margin:0">
+    <h3>Аффилиации</h3>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+      <div>
+        <div style="font-size:22px;font-weight:700;color:var(--text-bright)">{{ affil_groups_count }}</div>
+        <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">Групп в CSV</div>
+      </div>
+      <div>
+        <div style="font-size:22px;font-weight:700;color:var(--accent2)">{{ affil_multi }}</div>
+        <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">ИНН с >1 объектом</div>
+      </div>
+    </div>
+    <p style="font-size:11px;color:var(--text-dim);margin-top:14px;line-height:1.6">
+      ИНН с несколькими объектами — возможные аффилированные группы.<br>
+      Проверяйте в справочнике застройщиков.
+    </p>
+  </div>
+
+</div>
+
 {% endblock %}
