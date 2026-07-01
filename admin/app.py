@@ -19,6 +19,7 @@ import ariza_parser
 import object_info_parser
 from import_master import FIELD_ALIASES, build_manual_schema, migrate_complexes, to_float
 from org_directory import ensure_schema as ensure_dir_schema, merge_org, normalize_inn, org_key_for, rebuild_objects_count, recompute_stats, resolve_org
+import reyting_parser
 
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
 MANUAL_DB_PATH = Path(__file__).parent / 'cam_manual.db'
@@ -95,6 +96,7 @@ def original_value(raw_dict, field):
 
 
 app = Flask(__name__)
+app.secret_key = 'cam-admin-dev-key'
 
 
 def get_db():
@@ -751,6 +753,43 @@ def directory_merge(role, org_key):
     merge_org(db, role, org_key, dst_key)
     rebuild_objects_count(db)
     return redirect(url_for('directory_detail', role=role, org_key=dst_key))
+
+
+@app.route('/directory/<role>/<path:org_key>/fetch-reyting', methods=['POST'])
+def directory_fetch_reyting(role, org_key):
+    """Получить рейтинг с reyting.mc.uz по ИНН и сохранить."""
+    db = get_db()
+    org = db.execute(
+        'SELECT key_type FROM org_directory WHERE role=? AND org_key=?',
+        (role, org_key)
+    ).fetchone()
+    if not org or org['key_type'] != 'inn':
+        return redirect(url_for('directory_detail', role=role, org_key=org_key))
+    result = reyting_parser.fetch_and_save(db, role, org_key, org_key)
+    if result and 'error' not in result:
+        flash_msg = f"Рейтинг: {result.get('rating') or 'не найден на портале'}"
+    else:
+        flash_msg = f"Ошибка: {(result or {}).get('error', 'нет ответа')}"
+    # сохраняем flash в session для показа на странице
+    from flask import session
+    session['flash'] = flash_msg
+    return redirect(url_for('directory_detail', role=role, org_key=org_key))
+
+
+@app.route('/directory/bulk-reyting', methods=['POST'])
+def directory_bulk_reyting():
+    """Массовое обновление рейтингов для всех карточек с ИНН (запускается вручную)."""
+    db = get_db()
+    role = request.form.get('role') or None
+    limit = int(request.form.get('limit') or 0) or None
+    result = reyting_parser.bulk_fetch(db, role=role, delay=0.5, limit=limit)
+    from flask import session
+    session['flash'] = (
+        f"reyting.mc.uz: обновлено {result['ok']}, "
+        f"не найдено {result['not_found']}, ошибок {result['errors']} "
+        f"(из {result['total']})"
+    )
+    return redirect(url_for('directory', role=role or 'developer'))
 
 
 @app.route('/directory/rebuild', methods=['POST'])

@@ -49,8 +49,9 @@
       </div>
     </div>
 
-    {# Статус проверки #}
-    <div style="display:flex;flex-direction:column;gap:8px;min-width:180px">
+    {# Действия: подтверждение + reyting.mc.uz #}
+    <div style="display:flex;flex-direction:column;gap:8px;min-width:200px">
+
       {% if org.needs_review %}
         <span class="badge unclear" style="font-size:12px;padding:5px 12px">! Требует проверки</span>
         <form method="post" action="{{ url_for('directory_confirm', role=role, org_key=org.org_key) }}">
@@ -61,6 +62,27 @@
       {% else %}
         <span class="badge delivered" style="font-size:12px;padding:5px 12px">✓ Подтверждено</span>
       {% endif %}
+
+      {% if org.key_type == 'inn' %}
+      <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:2px">
+        <div style="font-size:10.5px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">
+          reyting.mc.uz
+        </div>
+        <form method="post"
+              action="{{ url_for('directory_fetch_reyting', role=role, org_key=org.org_key) }}">
+          <button style="width:100%;border:1px solid var(--accent2);background:rgba(74,216,255,.07);
+                         color:var(--accent2);border-radius:5px;padding:7px 14px;font-size:12px;
+                         cursor:pointer;font-family:inherit">
+            ↓ Получить рейтинг
+          </button>
+        </form>
+        <div style="font-size:10.5px;color:var(--text-dim);margin-top:5px;line-height:1.5">
+          Запрос по ИНН {{ org.org_key }}<br>
+          Сохранит рейтинг автоматически.
+        </div>
+      </div>
+      {% endif %}
+
     </div>
   </div>
 </div>

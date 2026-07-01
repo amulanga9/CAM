@@ -13,6 +13,15 @@
       ↻ Пересчитать статистику
     </button>
   </form>
+  <form method="post" action="{{ url_for('directory_bulk_reyting') }}" style="margin:0"
+        onsubmit="return confirm('Массовый запрос к reyting.mc.uz по всем ИНН (задержка 0.5с между запросами). Продолжить?')">
+    <input type="hidden" name="role" value="{{ role }}">
+    <input type="hidden" name="limit" value="50">
+    <button style="border:1px solid var(--accent2);background:rgba(74,216,255,.07);color:var(--accent2);
+                   border-radius:5px;padding:5px 12px;font-size:11.5px;cursor:pointer;font-family:inherit">
+      ↓ Рейтинги с портала (топ-50)
+    </button>
+  </form>
 </div>
 
 {# ── Переключатель роли ──────────────────────────────────────────────────── #}
