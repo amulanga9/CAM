@@ -116,6 +116,11 @@ main{max-width:980px;margin:24px auto;padding:0 16px;}
     <div id="flags-body"></div>
   </div>
 
+  <div class="section" id="section-proofs" style="display:none">
+    <div class="section-title">Официальные документы</div>
+    <div id="proofs-body"></div>
+  </div>
+
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -267,6 +272,28 @@ function render(d){
         <div class="review-verdict" style="${VCLS[r.verdict]||''}">${VMAP[r.verdict]||esc(r.verdict)}</div>
         ${r.comment?`<div class="review-comment">${esc(r.comment)}</div>`:''}
         <div class="review-date">${formatDate(r.reviewed_at)}</div>
+      </div>`).join('');
+  }
+
+  // proofs
+  const proofsArr=d.proofs||[];
+  if(proofsArr.length){
+    document.getElementById('section-proofs').style.display='';
+    document.getElementById('proofs-body').innerHTML=proofsArr.map(p=>`
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;background:var(--surface-2)">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin-bottom:4px">${esc(p.proof_type||'документ')}</div>
+            ${p.proof_doc_number?`<div style="font-family:var(--font-data);font-size:12px;color:var(--accent);margin-bottom:3px">${esc(p.proof_doc_number)}</div>`:''}
+            ${p.proof_ariza?`<div style="font-size:11.5px;color:var(--text-dim)">Ариза: ${esc(p.proof_ariza)}</div>`:''}
+          </div>
+          ${p.proof_verify_url?`<a href="${esc(p.proof_verify_url)}" target="_blank" rel="noopener"
+            style="font-size:11.5px;color:var(--accent);border:1px solid rgba(111,140,255,.3);
+                   border-radius:5px;padding:4px 10px;text-decoration:none;white-space:nowrap">
+            ↗ Проверить</a>`:''}
+        </div>
+        ${p.proof_extracted?`<div style="font-size:12px;color:var(--text);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);line-height:1.6">${esc(p.proof_extracted)}</div>`:''}
+        ${p.added_at?`<div style="font-size:10.5px;color:var(--text-faint);margin-top:6px">${esc(p.added_at)}</div>`:''}
       </div>`).join('');
   }
 

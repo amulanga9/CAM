@@ -42,6 +42,24 @@ def load_reviews(manual_conn):
     return result
 
 
+def load_proofs(manual_conn):
+    try:
+        rows = manual_conn.execute(
+            'SELECT cam_id, proof_type, proof_doc_number, proof_ariza, proof_verify_url, proof_extracted, added_at '
+            'FROM complex_proofs ORDER BY id'
+        ).fetchall()
+        result = {}
+        for cam_id, ptype, docnum, ariza, vurl, extracted, added_at in rows:
+            result.setdefault(cam_id, []).append({
+                'proof_type': ptype, 'proof_doc_number': docnum,
+                'proof_ariza': ariza, 'proof_verify_url': vurl,
+                'proof_extracted': extracted, 'added_at': added_at,
+            })
+        return result
+    except Exception:
+        return {}
+
+
 def load_delay_flags(manual_conn):
     try:
         rows = manual_conn.execute('SELECT cam_id, flag, note FROM delay_flags').fetchall()
@@ -117,6 +135,7 @@ def export(admin_db=ADMIN_DB, manual_db=MANUAL_DB, data_dir=DATA_DIR):
     overrides   = load_overrides(manual_conn)
     reviews     = load_reviews(manual_conn)
     delay_flags = load_delay_flags(manual_conn)
+    proofs      = load_proofs(manual_conn)
     org_ratings = load_org_ratings(admin_conn)
 
     cols = [r[1] for r in admin_conn.execute('PRAGMA table_info(complexes)')]
@@ -125,6 +144,7 @@ def export(admin_db=ADMIN_DB, manual_db=MANUAL_DB, data_dir=DATA_DIR):
     index = []
     for row in rows:
         rec = build_complex_record(row, cols, overrides, reviews, delay_flags, org_ratings)
+        rec['proofs'] = proofs.get(rec['cam_id'], [])
 
         # write per-complex file
         path = os.path.join(data_dir, 'complex', f"{rec['cam_id']}.json")

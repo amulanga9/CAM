@@ -593,6 +593,9 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None, delay_p
     delay_flag = db.execute(
         'SELECT * FROM manual.delay_flags WHERE cam_id=?', (cam_id,)
     ).fetchone()
+    proofs = db.execute(
+        'SELECT * FROM manual.complex_proofs WHERE cam_id=? ORDER BY id', (cam_id,)
+    ).fetchall()
     holdings = [r[0] for r in db.execute(
         "SELECT DISTINCT holding_name FROM complexes WHERE holding_name IS NOT NULL AND holding_name != '' ORDER BY holding_name"
     ).fetchall()]
@@ -600,6 +603,7 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None, delay_p
     return render_template(
         'complex_detail.html', row=row, raw=raw, history=history,
         verdicts=VERDICTS, rebrands=rebrands, phases=phases, holdings=holdings,
+        proofs=proofs,
         delay_flag=delay_flag, delay_types=DELAY_TYPES, proof_types=PROOF_TYPES,
         rebrand_form=rebrand_form or {}, rebrand_error=rebrand_error,
         delay_parse_error=delay_parse_error,
@@ -609,6 +613,30 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None, delay_p
 @app.route('/complex/<cam_id>')
 def complex_detail(cam_id):
     return render_complex_detail(cam_id)
+
+
+@app.route('/complex/<cam_id>/proof/add', methods=['POST'])
+def proof_add(cam_id):
+    db = get_db()
+    f = request.form
+    db.execute(
+        '''INSERT INTO manual.complex_proofs
+           (cam_id, proof_type, proof_doc_number, proof_ariza, proof_verify_url, proof_extracted, added_at)
+           VALUES (?,?,?,?,?,?,date('now'))''',
+        (cam_id, f.get('proof_type') or None, f.get('proof_doc_number') or None,
+         f.get('proof_ariza') or None, f.get('proof_verify_url') or None,
+         f.get('proof_extracted') or None)
+    )
+    db.commit()
+    return redirect(url_for('complex_detail', cam_id=cam_id))
+
+
+@app.route('/complex/<cam_id>/proof/<int:proof_id>/delete', methods=['POST'])
+def proof_delete(cam_id, proof_id):
+    db = get_db()
+    db.execute('DELETE FROM manual.complex_proofs WHERE id=? AND cam_id=?', (proof_id, cam_id))
+    db.commit()
+    return redirect(url_for('complex_detail', cam_id=cam_id))
 
 
 @app.route('/all')
