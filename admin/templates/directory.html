@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Справочник организаций — CAM admin{% endblock %}
+{% block content %}
+<h2 style="color:var(--text-bright);margin-bottom:16px;font-size:16px;letter-spacing:.04em">
+  Справочник организаций
+</h2>
+
+{# Переключатель роли #}
+<div style="display:flex;gap:8px;margin-bottom:14px;align-items:center">
+  <a href="{{ url_for('directory', role='developer', q=q, review='1' if review_only else '') }}"
+     class="btn" style="{% if role=='developer' %}border-color:var(--accent);color:var(--accent){% endif %}">
+    Застройщики
+    <span style="color:var(--text-dim);font-size:11px;margin-left:4px">{{ counts.get('developer',0) }}</span>
+    {% if review_counts.get('developer') %}
+      <span class="badge unclear" style="margin-left:4px">{{ review_counts.developer }} !</span>
+    {% endif %}
+  </a>
+  <a href="{{ url_for('directory', role='contractor', q=q, review='1' if review_only else '') }}"
+     class="btn" style="{% if role=='contractor' %}border-color:var(--accent);color:var(--accent){% endif %}">
+    Подрядчики
+    <span style="color:var(--text-dim);font-size:11px;margin-left:4px">{{ counts.get('contractor',0) }}</span>
+    {% if review_counts.get('contractor') %}
+      <span class="badge unclear" style="margin-left:4px">{{ review_counts.contractor }} !</span>
+    {% endif %}
+  </a>
+
+  <div style="flex:1"></div>
+
+  {# Фильтр "требует проверки" #}
+  {% if review_only %}
+    <a href="{{ url_for('directory', role=role, q=q) }}" class="btn">Все</a>
+    <span class="badge unclear">Только на проверке</span>
+  {% else %}
+    <a href="{{ url_for('directory', role=role, q=q, review='1') }}" class="btn"
+       style="border-color:var(--warn);color:var(--warn)">На проверке</a>
+  {% endif %}
+
+  {# Пересчёт объектов #}
+  <form method="post" action="{{ url_for('directory_rebuild') }}" style="margin:0">
+    <button style="border:1px solid var(--border-hi);background:var(--bg-raised);color:var(--text-dim);
+                   border-radius:5px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit">
+      ↻ Пересчитать объекты
+    </button>
+  </form>
+</div>
+
+{# Поиск #}
+<form method="get" style="display:flex;gap:8px;margin-bottom:14px">
+  <input type="hidden" name="role" value="{{ role }}">
+  {% if review_only %}<input type="hidden" name="review" value="1">{% endif %}
+  <input type="text" name="q" value="{{ q }}" placeholder="ИНН или название…" style="width:320px">
+  <button type="submit" class="btn">Найти</button>
+  {% if q %}<a href="{{ url_for('directory', role=role) }}" class="btn">✕</a>{% endif %}
+</form>
+
+<table>
+  <thead>
+    <tr>
+      <th>Организация</th>
+      <th>Ключ / ИНН</th>
+      <th style="text-align:center">Рейтинг</th>
+      <th style="text-align:center">Объектов</th>
+      <th style="text-align:center">% просрочки</th>
+      <th style="text-align:center">Алиасов</th>
+      <th style="text-align:center">Статус</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>
+        <a href="{{ url_for('directory_detail', role=r.role, org_key=r.org_key) }}"
+           style="color:var(--text-bright);text-decoration:none;font-weight:{% if r.needs_review %}600{% else %}400{% endif %}">
+          {{ r.name_canonical or '—' }}
+        </a>
+      </td>
+      <td style="font-size:11px;color:var(--text-dim)">
+        {% if r.key_type == 'inn' %}
+          {{ r.org_key }}
+        {% else %}
+          <span title="{{ r.org_key }}" style="color:var(--text-dim)">норм.</span>
+        {% endif %}
+      </td>
+      <td style="text-align:center">
+        {% if r.rating %}
+          <span class="badge {% if 'D' in r.rating %}unclear{% elif 'C' in r.rating %}in_progress{% else %}delivered{% endif %}">
+            {{ r.rating }}
+          </span>
+        {% else %}—{% endif %}
+      </td>
+      <td style="text-align:center">{{ r.objects_count or 0 }}</td>
+      <td style="text-align:center;{% if r.overdue_pct and r.overdue_pct > 30 %}color:var(--bad){% endif %}">
+        {% if r.overdue_pct is not none %}{{ '%.0f'|format(r.overdue_pct) }}%{% else %}—{% endif %}
+      </td>
+      <td style="text-align:center;color:{% if r.alias_count > 1 %}var(--warn){% else %}var(--text-dim){% endif %}">
+        {{ r.alias_count }}
+      </td>
+      <td style="text-align:center">
+        {% if r.needs_review %}
+          <form method="post" action="{{ url_for('directory_confirm', role=r.role, org_key=r.org_key) }}"
+                style="display:inline">
+            <button class="badge unclear" style="cursor:pointer;border:none;background:transparent;
+                           font-family:inherit;padding:3px 8px" title="Подтвердить">! Проверить</button>
+          </form>
+        {% else %}
+          <span style="color:var(--accent);font-size:11px">✓</span>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" style="color:var(--text-dim);text-align:center;padding:24px">Ничего не найдено</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

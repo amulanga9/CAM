@@ -18,6 +18,7 @@ from flask import Flask, g, redirect, render_template, request, url_for
 import ariza_parser
 import object_info_parser
 from import_master import FIELD_ALIASES, build_manual_schema, migrate_complexes, to_float
+from org_directory import ensure_schema as ensure_dir_schema, merge_org, normalize_inn, org_key_for, rebuild_objects_count, resolve_org
 
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
 MANUAL_DB_PATH = Path(__file__).parent / 'cam_manual.db'
@@ -103,6 +104,7 @@ def get_db():
         g.db.execute(f"ATTACH DATABASE '{MANUAL_DB_PATH}' AS manual")
         build_manual_schema(g.db)  # на случай если app.py запущен раньше первого import_master.py
         migrate_complexes(g.db)    # подтягивает новые колонки, если БД старее текущей схемы
+    ensure_dir_schema(g.db)
     return g.db
 
 
@@ -528,6 +530,135 @@ def all_complexes():
     sql += ' ORDER BY cam_id LIMIT 500'
     rows = db.execute(sql, params).fetchall()
     return render_template('all_complexes.html', rows=rows, q=q, status=status)
+
+
+# ─── Справочник организаций ───────────────────────────────────────────────────
+
+@app.route('/directory')
+def directory():
+    db = get_db()
+    role = request.args.get('role', 'developer')
+    q = request.args.get('q', '').strip()
+    review_only = request.args.get('review', '') == '1'
+    sql = '''
+        SELECT d.role, d.org_key, d.key_type, d.name_canonical,
+               d.rating, d.objects_count, d.bad_pct, d.overdue_pct,
+               d.first_seen, d.last_seen, d.needs_review,
+               COUNT(a.raw_name) AS alias_count
+        FROM org_directory d
+        LEFT JOIN org_aliases a ON a.role=d.role AND a.org_key=d.org_key
+        WHERE d.role=?
+    '''
+    params = [role]
+    if q:
+        sql += ' AND (d.name_canonical LIKE ? OR d.org_key LIKE ?)'
+        params += [f'%{q}%', f'%{q}%']
+    if review_only:
+        sql += ' AND d.needs_review=1'
+    sql += ' GROUP BY d.role, d.org_key ORDER BY d.objects_count DESC, d.name_canonical'
+    rows = db.execute(sql, params).fetchall()
+    counts = {
+        r[0]: r[1]
+        for r in db.execute(
+            'SELECT role, COUNT(*) FROM org_directory GROUP BY role'
+        )
+    }
+    review_counts = {
+        r[0]: r[1]
+        for r in db.execute(
+            'SELECT role, COUNT(*) FROM org_directory WHERE needs_review=1 GROUP BY role'
+        )
+    }
+    return render_template('directory.html', rows=rows, role=role, q=q,
+                           review_only=review_only, counts=counts,
+                           review_counts=review_counts)
+
+
+@app.route('/directory/<role>/<path:org_key>')
+def directory_detail(role, org_key):
+    db = get_db()
+    org = db.execute(
+        'SELECT * FROM org_directory WHERE role=? AND org_key=?', (role, org_key)
+    ).fetchone()
+    if not org:
+        return 'Организация не найдена', 404
+    aliases = db.execute(
+        'SELECT raw_name, source, first_seen, last_seen FROM org_aliases '
+        'WHERE role=? AND org_key=? ORDER BY last_seen DESC',
+        (role, org_key)
+    ).fetchall()
+    name_col = 'developer_name' if role == 'developer' else 'contractor_name'
+    inn_col = 'developer_inn' if role == 'developer' else 'contractor_inn'
+    if org['key_type'] == 'inn':
+        objects = db.execute(
+            f'SELECT cam_id, project_name, {name_col}, case_status_clean FROM complexes '
+            f'WHERE {inn_col}=? ORDER BY cam_id',
+            (org_key,)
+        ).fetchall()
+    else:
+        norm_key = org_key[len('NORM:'):]
+        objects = db.execute(
+            f'SELECT cam_id, project_name, {name_col}, case_status_clean FROM complexes '
+            f'WHERE {inn_col} IS NULL OR {inn_col}="" ORDER BY cam_id'
+        ).fetchall()
+        from org_directory import normalize_org_name
+        objects = [o for o in objects if normalize_org_name(o[name_col]) == norm_key]
+    all_orgs = db.execute(
+        'SELECT org_key, name_canonical FROM org_directory WHERE role=? AND org_key!=? ORDER BY name_canonical',
+        (role, org_key)
+    ).fetchall()
+    return render_template('directory_detail.html', org=org, aliases=aliases,
+                           objects=objects, role=role, all_orgs=all_orgs)
+
+
+@app.route('/directory/<role>/<path:org_key>/edit', methods=['POST'])
+def directory_edit(role, org_key):
+    db = get_db()
+    name_canonical = request.form.get('name_canonical', '').strip()
+    rating = request.form.get('rating', '').strip() or None
+    if name_canonical:
+        db.execute(
+            'UPDATE org_directory SET name_canonical=?, rating=? WHERE role=? AND org_key=?',
+            (name_canonical, rating, role, org_key)
+        )
+        db.commit()
+    return redirect(url_for('directory_detail', role=role, org_key=org_key))
+
+
+@app.route('/directory/<role>/<path:org_key>/confirm', methods=['POST'])
+def directory_confirm(role, org_key):
+    db = get_db()
+    db.execute(
+        'UPDATE org_directory SET needs_review=0 WHERE role=? AND org_key=?',
+        (role, org_key)
+    )
+    db.commit()
+    return redirect(request.referrer or url_for('directory', role=role))
+
+
+@app.route('/directory/<role>/<path:org_key>/merge', methods=['POST'])
+def directory_merge(role, org_key):
+    """Слить текущую карточку (src) в выбранную dst — алиасы переходят, src удаляется."""
+    db = get_db()
+    dst_key = request.form.get('dst_key', '').strip()
+    if not dst_key or dst_key == org_key:
+        return redirect(url_for('directory_detail', role=role, org_key=org_key))
+    dst = db.execute(
+        'SELECT 1 FROM org_directory WHERE role=? AND org_key=?', (role, dst_key)
+    ).fetchone()
+    if not dst:
+        return 'Целевая карточка не найдена', 404
+    merge_org(db, role, org_key, dst_key)
+    rebuild_objects_count(db)
+    return redirect(url_for('directory_detail', role=role, org_key=dst_key))
+
+
+@app.route('/directory/rebuild', methods=['POST'])
+def directory_rebuild():
+    """Перестроить objects_count по текущим complexes."""
+    db = get_db()
+    rebuild_objects_count(db)
+    return redirect(url_for('directory'))
 
 
 if __name__ == '__main__':

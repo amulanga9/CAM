@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}{{ org.name_canonical or org.org_key }} — Справочник — CAM admin{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:14px">
+  <a href="{{ url_for('directory', role=role) }}" style="color:var(--text-dim);font-size:12px">
+    ← Справочник {{ 'застройщиков' if role=='developer' else 'подрядчиков' }}
+  </a>
+</div>
+
+<div class="card">
+  <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:260px">
+      <h2 style="margin:0 0 4px;color:var(--text-bright);font-size:16px">
+        {{ org.name_canonical or '—' }}
+      </h2>
+      <div style="color:var(--text-dim);font-size:12px;margin-bottom:10px">
+        {% if org.key_type == 'inn' %}
+          ИНН <b style="color:var(--accent2)">{{ org.org_key }}</b>
+        {% else %}
+          <span title="{{ org.org_key }}">ключ по норм. названию</span>
+        {% endif %}
+        &nbsp;·&nbsp;
+        {{ 'Застройщик' if role=='developer' else 'Подрядчик' }}
+      </div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap">
+        {% if org.rating %}
+          <div class="stat">
+            <b><span class="badge {% if 'D' in org.rating %}unclear{% elif 'C' in org.rating %}in_progress{% else %}delivered{% endif %}">
+              {{ org.rating }}</span></b>
+            <span>рейтинг</span>
+          </div>
+        {% endif %}
+        <div class="stat"><b>{{ org.objects_count or 0 }}</b><span>объектов</span></div>
+        {% if org.overdue_pct is not none %}
+          <div class="stat">
+            <b style="color:{% if org.overdue_pct > 30 %}var(--bad){% else %}inherit{% endif %}">
+              {{ '%.0f'|format(org.overdue_pct) }}%
+            </b>
+            <span>просрочка</span>
+          </div>
+        {% endif %}
+        {% if org.bad_pct is not none %}
+          <div class="stat"><b>{{ '%.0f'|format(org.bad_pct) }}%</b><span>плохих исходов</span></div>
+        {% endif %}
+      </div>
+      <div style="color:var(--text-dim);font-size:11px;margin-top:8px">
+        Впервые: {{ org.first_seen or '—' }} &nbsp;·&nbsp; Последний снапшот: {{ org.last_seen or '—' }}
+      </div>
+    </div>
+
+    {# Статус проверки #}
+    <div style="display:flex;flex-direction:column;gap:8px;min-width:180px">
+      {% if org.needs_review %}
+        <span class="badge unclear" style="font-size:12px;padding:5px 12px">! Требует проверки</span>
+        <form method="post" action="{{ url_for('directory_confirm', role=role, org_key=org.org_key) }}">
+          <button style="width:100%;border:1px solid var(--accent);background:rgba(57,255,196,.07);
+                         color:var(--accent);border-radius:5px;padding:7px 14px;font-size:12px;
+                         cursor:pointer;font-family:inherit">✓ Подтвердить</button>
+        </form>
+      {% else %}
+        <span class="badge delivered" style="font-size:12px;padding:5px 12px">✓ Подтверждено</span>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{# Редактирование #}
+<details class="block">
+  <summary>
+    <span class="summary-title">Редактировать карточку</span>
+    <span class="summary-vals">название, рейтинг</span>
+  </summary>
+  <div class="block-body">
+    <form method="post" action="{{ url_for('directory_edit', role=role, org_key=org.org_key) }}"
+          style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">Каноническое название</div>
+        <input type="text" name="name_canonical" value="{{ org.name_canonical or '' }}" style="width:380px">
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">Рейтинг</div>
+        <input type="text" name="rating" value="{{ org.rating or '' }}" style="width:80px">
+      </div>
+      <button type="submit" style="border:1px solid var(--accent);background:rgba(57,255,196,.07);
+              color:var(--accent);border-radius:5px;padding:6px 16px;font-size:12px;
+              cursor:pointer;font-family:inherit">Сохранить</button>
+    </form>
+  </div>
+</details>
+
+{# Варианты написания (алиасы) #}
+<details class="block" {% if aliases|length > 1 %}open{% endif %}>
+  <summary>
+    <span class="summary-title">Варианты написания</span>
+    <span class="summary-vals">{{ aliases|length }} шт.</span>
+  </summary>
+  <div class="block-body">
+    <table>
+      <thead>
+        <tr>
+          <th>Сырое название (с портала/мастера)</th>
+          <th>Источник</th>
+          <th>Первый раз</th>
+          <th>Последний раз</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for a in aliases %}
+        <tr>
+          <td>{{ a.raw_name }}</td>
+          <td style="color:var(--text-dim);font-size:11px">{{ a.source or '—' }}</td>
+          <td style="color:var(--text-dim);font-size:11px">{{ a.first_seen or '—' }}</td>
+          <td style="color:var(--text-dim);font-size:11px">{{ a.last_seen or '—' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+
+{# Объекты #}
+<details class="block" open>
+  <summary>
+    <span class="summary-title">Объекты</span>
+    <span class="summary-vals">{{ objects|length }} шт.</span>
+  </summary>
+  <div class="block-body">
+    <table>
+      <thead>
+        <tr>
+          <th>cam_id</th>
+          <th>Название</th>
+          <th>Статус</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for o in objects %}
+        <tr>
+          <td><a href="{{ url_for('complex_detail', cam_id=o.cam_id) }}">{{ o.cam_id }}</a></td>
+          <td>{{ o[1] or '—' }}</td>
+          <td><span class="badge {{ o[3] or 'unclear' }}">{{ o[3] or '?' }}</span></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3" style="color:var(--text-dim)">Объекты не найдены</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</details>
+
+{# Объединение с другой карточкой #}
+<details class="block">
+  <summary>
+    <span class="summary-title">Объединить с другой карточкой</span>
+    <span class="summary-vals">текущая исчезнет, алиасы перейдут в выбранную</span>
+  </summary>
+  <div class="block-body">
+    <form method="post" action="{{ url_for('directory_merge', role=role, org_key=org.org_key) }}"
+          style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">Объединить В →</div>
+        <select name="dst_key" style="width:400px">
+          <option value="">— выберите организацию —</option>
+          {% for o in all_orgs %}
+            <option value="{{ o.org_key }}">{{ o.name_canonical or o.org_key }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit"
+              onclick="return confirm('Текущая карточка будет удалена, алиасы перейдут в выбранную. Продолжить?')"
+              style="border:1px solid var(--bad);background:rgba(255,93,122,.07);
+                     color:var(--bad);border-radius:5px;padding:6px 14px;font-size:12px;
+                     cursor:pointer;font-family:inherit">Объединить</button>
+    </form>
+    <p style="color:var(--text-dim);font-size:11px;margin-top:10px">
+      Используйте, если одна и та же компания попала в справочник дважды под разными ключами
+      (напр., один раз без ИНН, второй раз — с ИНН).
+    </p>
+  </div>
+</details>
+
+{% endblock %}
