@@ -176,6 +176,14 @@ def export(admin_db=ADMIN_DB, manual_db=MANUAL_DB, data_dir=DATA_DIR):
     with open(os.path.join(data_dir, 'complexes.json'), 'w', encoding='utf-8') as f:
         json.dump(index, f, ensure_ascii=False, separators=(',', ':'))
 
+    # удаляем JSON карточек, которых больше нет в БД (слиты/исключены)
+    alive = {rec['cam_id'] for rec in index}
+    removed = 0
+    for fn in os.listdir(os.path.join(data_dir, 'complex')):
+        if fn.endswith('.json') and fn[:-5] not in alive:
+            os.remove(os.path.join(data_dir, 'complex', fn))
+            removed += 1
+
     admin_conn.close()
     manual_conn.close()
     return {'total': len(rows), 'data_dir': data_dir}

@@ -21,6 +21,7 @@ from import_master import FIELD_ALIASES, build_manual_schema, migrate_complexes,
 from org_directory import ensure_schema as ensure_dir_schema, merge_org, normalize_inn, org_key_for, rebuild_objects_count, recompute_stats, resolve_org
 import reyting_parser
 from tags import TAG_BADGE_CLASS, TAG_LABELS, ensure_tags, rebuild_tags, tag_counts, tags_for
+import merge_complexes
 
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
 MANUAL_DB_PATH = Path(__file__).parent / 'cam_manual.db'
@@ -679,6 +680,41 @@ def all_complexes():
                            tag=tag, row_tags=row_tags,
                            tag_labels=TAG_LABELS, tag_badge=TAG_BADGE_CLASS,
                            tag_counts=tag_counts(db))
+
+
+@app.route('/duplicates')
+def duplicates():
+    db = get_db()
+    clusters = merge_complexes.find_duplicate_clusters(db)
+    n_auto = sum(1 for c in clusters if c['auto'])
+    return render_template('duplicates.html', clusters=clusters, n_auto=n_auto)
+
+
+@app.route('/duplicates/auto-merge', methods=['POST'])
+def duplicates_auto_merge():
+    db = get_db()
+    done = merge_complexes.auto_merge_all(db)
+    recompute_stats(db)
+    session['flash'] = 'Объединено автоматически: ' + (
+        ', '.join(f'{s}→{d}' for s, d in done) if done else 'нечего объединять')
+    return redirect(url_for('duplicates'))
+
+
+@app.route('/duplicates/merge', methods=['POST'])
+def duplicates_merge():
+    db = get_db()
+    dst = request.form.get('dst', '').strip()
+    srcs = [s for s in request.form.getlist('src') if s and s != dst]
+    if not dst or not srcs:
+        session['flash'] = 'Выберите главную карточку и хотя бы одну для слияния'
+        return redirect(url_for('duplicates'))
+    merged = []
+    for src in srcs:
+        merge_complexes.merge_pair(db, dst, src, dst=dst, reason='manual_merge')
+        merged.append(src)
+    recompute_stats(db)
+    session['flash'] = f"{', '.join(merged)} → {dst}"
+    return redirect(url_for('duplicates'))
 
 
 @app.route('/rebuild-tags', methods=['POST'])
