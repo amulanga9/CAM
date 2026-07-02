@@ -839,6 +839,13 @@ def directory_set_rating(role, org_key):
     return redirect(request.referrer or url_for('directory', role=role))
 
 
+@app.errorhandler(405)
+def method_not_allowed(e):
+    """POST-адрес открыли как страницу (refresh/назад/новая вкладка) — возвращаем на дашборд."""
+    session['flash'] = 'Это действие выполняется кнопкой, а не открытием ссылки — вернула на дашборд.'
+    return redirect(url_for('dashboard'))
+
+
 @app.route('/export-public', methods=['POST'])
 def export_public():
     """Экспортирует data/complexes.json и data/complex/<id>.json для GitHub Pages."""
