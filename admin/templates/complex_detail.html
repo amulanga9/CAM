@@ -2,6 +2,14 @@
 {% block content %}
 <h2>{{ row.cam_id }} — {{ row.project_name or row.address or '' }}</h2>
 
+{% if obj_tags %}
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin:-6px 0 14px">
+  {% for t in obj_tags %}
+    <span class="badge {{ tag_badge.get(t, 'unclear') }}">{{ tag_labels.get(t, t) }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% if phases|length > 1 %}
 <div class="card">
   <h3>Корпуса / очереди этого ЖК ({{ phases|length }})</h3>

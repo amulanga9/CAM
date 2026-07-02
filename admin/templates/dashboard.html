@@ -76,11 +76,13 @@
   </div>
 
   <div class="card" style="margin:0">
-    <h3 style="font-size:11px;margin-bottom:8px">Источники</h3>
-    {% for s in by_source %}
+    <h3 style="font-size:11px;margin-bottom:8px">Метки (объект может иметь несколько)</h3>
+    {% for t, label in tag_labels.items() %}
     <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px">
-      <span style="color:var(--text-dim)">{{ s.source_sheet or '—' }}</span>
-      <b>{{ s.n }}</b>
+      <a href="{{ url_for('all_complexes', tag=t) }}" style="text-decoration:none">
+        <span class="badge {{ tag_badge.get(t, 'unclear') }}" style="font-size:9px;padding:1px 6px">{{ label }}</span>
+      </a>
+      <b>{{ tag_stats.get(t, 0) }}</b>
     </div>
     {% endfor %}
   </div>

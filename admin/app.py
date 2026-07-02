@@ -20,6 +20,7 @@ import object_info_parser
 from import_master import FIELD_ALIASES, build_manual_schema, migrate_complexes, to_float
 from org_directory import ensure_schema as ensure_dir_schema, merge_org, normalize_inn, org_key_for, rebuild_objects_count, recompute_stats, resolve_org
 import reyting_parser
+from tags import TAG_BADGE_CLASS, TAG_LABELS, ensure_tags, rebuild_tags, tag_counts, tags_for
 
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
 MANUAL_DB_PATH = Path(__file__).parent / 'cam_manual.db'
@@ -107,6 +108,7 @@ def get_db():
         build_manual_schema(g.db)  # на случай если app.py запущен раньше первого import_master.py
         migrate_complexes(g.db)    # подтягивает новые колонки, если БД старее текущей схемы
     ensure_dir_schema(g.db)
+    ensure_tags(g.db)
     return g.db
 
 
@@ -231,6 +233,7 @@ def dashboard():
         dir_stats=dir_stats, affil_multi=affil_multi,
         affil_groups_count=affil_groups_count,
         dir_confirmed=dir_confirmed, dir_total=dir_total, dir_rated=dir_rated,
+        tag_stats=tag_counts(db), tag_labels=TAG_LABELS, tag_badge=TAG_BADGE_CLASS,
     )
 
 
@@ -604,6 +607,7 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None, delay_p
         'complex_detail.html', row=row, raw=raw, history=history,
         verdicts=VERDICTS, rebrands=rebrands, phases=phases, holdings=holdings,
         proofs=proofs,
+        obj_tags=tags_for(db, cam_id), tag_labels=TAG_LABELS, tag_badge=TAG_BADGE_CLASS,
         delay_flag=delay_flag, delay_types=DELAY_TYPES, proof_types=PROOF_TYPES,
         rebrand_form=rebrand_form or {}, rebrand_error=rebrand_error,
         delay_parse_error=delay_parse_error,
@@ -644,6 +648,7 @@ def all_complexes():
     db = get_db()
     q = request.args.get('q', '').strip()
     status = request.args.get('status', '').strip()
+    tag = request.args.get('tag', '').strip()
     sql = 'SELECT * FROM complexes WHERE 1=1'
     params = []
     if q:
@@ -657,9 +662,31 @@ def all_complexes():
     if status:
         sql += ' AND case_status_clean = ?'
         params.append(status)
+    if tag:
+        sql += ' AND cam_id IN (SELECT cam_id FROM complex_tags WHERE tag = ?)'
+        params.append(tag)
     sql += ' ORDER BY cam_id LIMIT 500'
     rows = db.execute(sql, params).fetchall()
-    return render_template('all_complexes.html', rows=rows, q=q, status=status)
+    # метки всех показанных объектов одним запросом
+    row_tags = {}
+    if rows:
+        ids = [r['cam_id'] for r in rows]
+        ph = ','.join('?' * len(ids))
+        for cam_id, t in db.execute(
+                f'SELECT cam_id, tag FROM complex_tags WHERE cam_id IN ({ph})', ids):
+            row_tags.setdefault(cam_id, []).append(t)
+    return render_template('all_complexes.html', rows=rows, q=q, status=status,
+                           tag=tag, row_tags=row_tags,
+                           tag_labels=TAG_LABELS, tag_badge=TAG_BADGE_CLASS,
+                           tag_counts=tag_counts(db))
+
+
+@app.route('/rebuild-tags', methods=['POST'])
+def rebuild_tags_route():
+    db = get_db()
+    rebuild_tags(db)
+    session['flash'] = f'Метки пересобраны: {sum(tag_counts(db).values())} записей'
+    return redirect(request.referrer or url_for('all_complexes'))
 
 
 # ─── Справочник организаций ───────────────────────────────────────────────────
