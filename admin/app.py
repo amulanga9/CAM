@@ -844,7 +844,6 @@ def export_public():
     """Экспортирует data/complexes.json и data/complex/<id>.json для GitHub Pages."""
     import export_public as ep
     result = ep.export()
-    g.db.execute("SELECT 1")  # keep connection alive
     session['flash'] = f"Экспортировано {result['total']} объектов → data/"
     return redirect(request.referrer or url_for('dashboard'))
 

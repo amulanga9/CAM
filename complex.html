@@ -265,8 +265,10 @@ function render(d){
   const revs=d.reviews||[];
   if(revs.length){
     document.getElementById('section-reviews').style.display='';
-    const VCLS={high:'color:var(--high)',med:'color:var(--med)',low:'color:var(--low)',neutral:'color:var(--text-dim)'};
-    const VMAP={high:'Высокий риск',med:'Средний риск',low:'Низкий риск',neutral:'Нейтрально'};
+    const VCLS={delivered:'color:var(--low)',building:'color:var(--accent)',frozen:'color:var(--high)',
+                cancelled:'color:var(--text-dim)',rebranded:'color:var(--med)'};
+    const VMAP={delivered:'Сдан',building:'Строится',frozen:'Заморожен',
+                cancelled:'Отменён',rebranded:'Ребрендирован'};
     document.getElementById('reviews-body').innerHTML=revs.map(r=>`
       <div class="review-item">
         <div class="review-verdict" style="${VCLS[r.verdict]||''}">${VMAP[r.verdict]||esc(r.verdict)}</div>
