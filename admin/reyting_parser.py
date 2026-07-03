@@ -167,8 +167,54 @@ def bulk_fetch(conn, role=None, delay=0.5, limit=None):
     return {'ok': ok, 'errors': errors, 'not_found': not_found, 'total': len(rows)}
 
 
+def _bulk_cli():
+    """python3 reyting_parser.py bulk [developer|contractor] [limit]
+
+    Массово подтягивает рейтинги для ВСЕХ карточек с ИНН (в отличие от
+    кнопки топ-50 в админке). ~0.5с на запрос, весь справочник ≈ 6 минут.
+    """
+    import os
+    import sqlite3
+    import sys
+    role = sys.argv[2] if len(sys.argv) > 2 else None
+    limit = int(sys.argv[3]) if len(sys.argv) > 3 else None
+    db_path = os.path.join(os.path.dirname(__file__), 'cam_admin.db')
+    conn = sqlite3.connect(db_path)
+
+    where = "key_type='inn'"
+    params = []
+    if role:
+        where += ' AND role=?'
+        params.append(role)
+    rows = conn.execute(
+        f'SELECT role, org_key FROM org_directory WHERE {where} ORDER BY objects_count DESC',
+        params).fetchall()
+    if limit:
+        rows = rows[:limit]
+
+    ok = errors = not_found = 0
+    for i, (r, inn) in enumerate(rows, 1):
+        result = fetch_and_save(conn, r, inn, inn)
+        if not result or 'error' in (result or {}):
+            errors += 1
+            mark = 'ошибка: ' + str((result or {}).get('error', 'нет ответа'))[:60]
+        elif result.get('rating') is None:
+            not_found += 1
+            mark = 'нет на портале'
+        else:
+            ok += 1
+            mark = f"рейтинг {result['rating']} ({result.get('rating_category')})"
+        print(f'[{i}/{len(rows)}] {r} {inn}: {mark}', flush=True)
+        if i < len(rows):
+            time.sleep(0.5)
+    print(f'\nитого: обновлено {ok}, нет на портале {not_found}, ошибок {errors}')
+
+
 if __name__ == '__main__':
     import sys
-    inn = sys.argv[1] if len(sys.argv) > 1 else '303094443'
-    result = fetch_reyting(inn)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    if len(sys.argv) > 1 and sys.argv[1] == 'bulk':
+        _bulk_cli()
+    else:
+        inn = sys.argv[1] if len(sys.argv) > 1 else '303094443'
+        result = fetch_reyting(inn)
+        print(json.dumps(result, ensure_ascii=False, indent=2))

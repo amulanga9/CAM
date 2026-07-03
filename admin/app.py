@@ -737,7 +737,8 @@ def directory():
     sql = '''
         SELECT d.role, d.org_key, d.key_type, d.name_canonical,
                d.rating, d.objects_count, d.bad_pct, d.overdue_pct,
-               d.first_seen, d.last_seen, d.needs_review,
+               d.first_seen, d.last_seen, d.needs_review, d.notes, d.reg_date,
+               CAST((julianday('now') - julianday(d.reg_date)) / 365.25 AS REAL) AS age_years,
                COUNT(a.raw_name) AS alias_count
         FROM org_directory d
         LEFT JOIN org_aliases a ON a.role=d.role AND a.org_key=d.org_key
@@ -801,8 +802,17 @@ def directory_detail(role, org_key):
         'SELECT org_key, name_canonical FROM org_directory WHERE role=? AND org_key!=? ORDER BY name_canonical',
         (role, org_key)
     ).fetchall()
+    org_age = None
+    if org['reg_date']:
+        try:
+            from datetime import date
+            reg = date.fromisoformat(org['reg_date'][:10])
+            org_age = (date.today() - reg).days / 365.25
+        except ValueError:
+            pass
     return render_template('directory_detail.html', org=org, aliases=aliases,
-                           objects=objects, role=role, all_orgs=all_orgs)
+                           objects=objects, role=role, all_orgs=all_orgs,
+                           org_age=org_age)
 
 
 @app.route('/directory/<role>/<path:org_key>/edit', methods=['POST'])

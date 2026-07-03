@@ -32,6 +32,13 @@
           </div>
         {% endif %}
         <div class="stat"><b>{{ org.objects_count or 0 }}</b><span>объектов</span></div>
+        {% if org_age is not none %}
+          <div class="stat">
+            <b style="color:{% if org_age < 2 %}var(--warn){% else %}inherit{% endif %}"
+               title="зарегистрирована {{ org.reg_date }}">{{ '%.1f'|format(org_age) }}</b>
+            <span>лет компании</span>
+          </div>
+        {% endif %}
         {% if org.overdue_pct is not none %}
           <div class="stat">
             <b style="color:{% if org.overdue_pct > 30 %}var(--bad){% else %}inherit{% endif %}">

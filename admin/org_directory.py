@@ -5,7 +5,10 @@
 Один объект = одна строка в org_directory. Все варианты сырого написания — в org_aliases.
 Таблицы живут в cam_admin.db.
 """
+import csv
+import os
 import re
+import sqlite3
 from datetime import date
 
 LEGAL_FORM_RE = re.compile(
@@ -78,6 +81,12 @@ def ensure_schema(conn):
             PRIMARY KEY (role, org_key, raw_name)
         )
     ''')
+    # миграции существующих установок
+    for col, decl in (('notes', 'TEXT'), ('reg_date', 'TEXT'), ('is_individual', 'INTEGER')):
+        try:
+            conn.execute(f'ALTER TABLE org_directory ADD COLUMN {col} {decl}')
+        except sqlite3.OperationalError:
+            pass
     conn.commit()
 
 
@@ -158,6 +167,46 @@ def ensure_seeded(conn):
         n_cx = conn.execute('SELECT COUNT(*) FROM complexes').fetchone()[0]
         if n_cx:
             seed_from_complexes(conn)
+    ensure_reg_dates(conn)
+
+
+REG_DATES_CSV = os.path.join(os.path.dirname(__file__), 'data', 'reg_dates.csv')
+
+
+def apply_reg_dates(conn, csv_path=REG_DATES_CSV):
+    """Проставляет дату регистрации (возраст компании) по ИНН из reg_dates.csv.
+
+    Возвращает число обновлённых карточек. Идемпотентно.
+    """
+    if not os.path.exists(csv_path):
+        return 0
+    reg = {}
+    with open(csv_path, encoding='utf-8-sig') as f:
+        for r in csv.DictReader(f):
+            inn = normalize_inn(r.get('ИНН', ''))
+            d = (r.get('дата_регистрации') or '').strip()
+            fiz = 1 if (r.get('физлицо') or '').strip() == '1' else 0
+            if inn and d:
+                reg[inn] = (d, fiz)
+    updated = 0
+    for (org_key,) in conn.execute(
+            "SELECT DISTINCT org_key FROM org_directory WHERE key_type='inn'").fetchall():
+        hit = reg.get(org_key)
+        if hit:
+            conn.execute(
+                'UPDATE org_directory SET reg_date=?, is_individual=? WHERE org_key=?',
+                (hit[0], hit[1], org_key))
+            updated += 1
+    conn.commit()
+    return updated
+
+
+def ensure_reg_dates(conn):
+    """Однократно применяет reg_dates.csv, если даты ещё не проставлены."""
+    has_any = conn.execute(
+        'SELECT 1 FROM org_directory WHERE reg_date IS NOT NULL LIMIT 1').fetchone()
+    if not has_any:
+        apply_reg_dates(conn)
 
 
 def merge_org(conn, role, src_key, dst_key):
