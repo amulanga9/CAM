@@ -18,7 +18,7 @@ from flask import Flask, g, redirect, render_template, request, session, url_for
 import ariza_parser
 import object_info_parser
 from import_master import FIELD_ALIASES, build_manual_schema, migrate_complexes, to_float
-from org_directory import ensure_schema as ensure_dir_schema, merge_org, normalize_inn, org_key_for, rebuild_objects_count, recompute_stats, resolve_org
+from org_directory import ensure_schema as ensure_dir_schema, ensure_seeded as ensure_dir_seeded, merge_org, normalize_inn, org_key_for, rebuild_objects_count, recompute_stats, resolve_org
 import reyting_parser
 from tags import TAG_BADGE_CLASS, TAG_LABELS, ensure_tags, rebuild_tags, tag_counts, tags_for
 import merge_complexes
@@ -109,6 +109,7 @@ def get_db():
         build_manual_schema(g.db)  # на случай если app.py запущен раньше первого import_master.py
         migrate_complexes(g.db)    # подтягивает новые колонки, если БД старее текущей схемы
     ensure_dir_schema(g.db)
+    ensure_dir_seeded(g.db)
     ensure_tags(g.db)
     return g.db
 

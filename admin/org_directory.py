@@ -132,6 +132,34 @@ def resolve_org(conn, role, raw_name, raw_inn, snapshot_date=None, source='porta
     return org_key
 
 
+def seed_from_complexes(conn):
+    """Наполняет пустой справочник из complexes (первый запуск на новой машине).
+
+    Идемпотентно: resolve_org не создаёт дублей, повторный вызов безопасен.
+    """
+    for role, name_col, inn_col in (
+        ('developer', 'developer_name', 'developer_inn'),
+        ('contractor', 'contractor_name', 'contractor_inn'),
+    ):
+        for raw_name, raw_inn in conn.execute(
+                f'SELECT {name_col}, {inn_col} FROM complexes '
+                f'WHERE ({name_col} IS NOT NULL AND {name_col} != "") '
+                f'   OR ({inn_col} IS NOT NULL AND {inn_col} != "")'):
+            resolve_org(conn, role, raw_name, raw_inn, source='complexes_seed')
+    recompute_stats(conn)
+    rebuild_objects_count(conn)
+    conn.commit()
+
+
+def ensure_seeded(conn):
+    """Если справочник пуст при непустых complexes — заполняет его."""
+    n_dir = conn.execute('SELECT COUNT(*) FROM org_directory').fetchone()[0]
+    if n_dir == 0:
+        n_cx = conn.execute('SELECT COUNT(*) FROM complexes').fetchone()[0]
+        if n_cx:
+            seed_from_complexes(conn)
+
+
 def merge_org(conn, role, src_key, dst_key):
     """Объединяет src_key в dst_key: переносит алиасы, обновляет статистику, удаляет src."""
     conn.execute('''
