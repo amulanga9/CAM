@@ -104,12 +104,22 @@ def fetch_orginfo(inn, timeout=15):
         m2 = re.search(re.escape(label) + r'\s*\n\s*([^\n]+)', text, re.IGNORECASE)
         return m2.group(1).strip() if m2 else None
 
+    reg_date = after('Дата регистрации') or after("Ro'yxatdan o'tgan sana")
+    # 13.12.2017 -> 2017-12-13
+    if reg_date:
+        m3 = re.match(r'(\d{2})\.(\d{2})\.(\d{4})', reg_date)
+        if m3:
+            reg_date = f'{m3.group(3)}-{m3.group(2)}-{m3.group(1)}'
+
     result = {
         'inn': inn,
         'url': card_url,
-        'name': None,
+        'name_official': after('Официальное название организации') or after('Официальное название'),
+        'name_short': after('Краткое название организации') or after('Краткое название'),
         'status': after('Статус') or after('Holati'),
-        'reg_date': after('Дата регистрации') or after("Ro'yxatdan o'tgan sana"),
+        'reg_date': reg_date,
+        'reg_authority': after('Регистрирующий орган'),
+        'opf': after('ОПФ'),
         'oked': after('ОКЭД') or after('OKED'),
         'address': after('Адрес') or after('Manzil'),
         'director': after('Руководитель') or after('Rahbar'),
@@ -117,7 +127,7 @@ def fetch_orginfo(inn, timeout=15):
     }
     mt = re.search(r'<title>([^<]+)</title>', page)
     if mt:
-        result['name'] = html_lib.unescape(mt.group(1)).split('|')[0].strip()
+        result['name_title'] = html_lib.unescape(mt.group(1)).split('|')[0].strip()
     return result
 
 

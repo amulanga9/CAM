@@ -82,7 +82,8 @@ def ensure_schema(conn):
         )
     ''')
     # миграции существующих установок
-    for col, decl in (('notes', 'TEXT'), ('reg_date', 'TEXT'), ('is_individual', 'INTEGER')):
+    for col, decl in (('notes', 'TEXT'), ('reg_date', 'TEXT'), ('is_individual', 'INTEGER'),
+                      ('org_status', 'TEXT'), ('org_checked', 'TEXT')):
         try:
             conn.execute(f'ALTER TABLE org_directory ADD COLUMN {col} {decl}')
         except sqlite3.OperationalError:

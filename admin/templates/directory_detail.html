@@ -83,9 +83,31 @@
             ↓ Получить рейтинг
           </button>
         </form>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:8px;margin-top:2px">
+        <div style="font-size:10.5px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">
+          orginfo.uz
+          {% if org.org_checked %}
+            <span style="text-transform:none;letter-spacing:0">· проверено {{ org.org_checked }}</span>
+          {% endif %}
+        </div>
+        {% if org.org_status %}
+          <div style="margin-bottom:6px">
+            <span class="badge {% if 'ктив' in org.org_status or 'ctive' in org.org_status %}delivered{% else %}stopped{% endif %}"
+                  style="font-size:11px">{{ org.org_status }}</span>
+          </div>
+        {% endif %}
+        <form method="post"
+              action="{{ url_for('directory_fetch_orginfo', role=role, org_key=org.org_key) }}">
+          <button style="width:100%;border:1px solid var(--accent2);background:rgba(74,216,255,.07);
+                         color:var(--accent2);border-radius:5px;padding:7px 14px;font-size:12px;
+                         cursor:pointer;font-family:inherit">
+            ↻ Статус и дата регистрации
+          </button>
+        </form>
         <div style="font-size:10.5px;color:var(--text-dim);margin-top:5px;line-height:1.5">
-          Запрос по ИНН {{ org.org_key }}<br>
-          Сохранит рейтинг автоматически.
+          Статус (активна/ликвидирована), дата регистрации,<br>официальное название — по ИНН {{ org.org_key }}.
         </div>
       </div>
       {% endif %}

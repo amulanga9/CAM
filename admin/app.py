@@ -877,6 +877,36 @@ def directory_fetch_reyting(role, org_key):
     return redirect(url_for('directory_detail', role=role, org_key=org_key))
 
 
+@app.route('/directory/<role>/<path:org_key>/fetch-orginfo', methods=['POST'])
+def directory_fetch_orginfo(role, org_key):
+    """Подтягивает статус/дату регистрации/название с orginfo.uz по ИНН."""
+    import org_enrich
+    db = get_db()
+    result = org_enrich.fetch_orginfo(org_key)
+    if result.get('error'):
+        session['flash'] = f"orginfo.uz: {result['error']}"
+        return redirect(url_for('directory_detail', role=role, org_key=org_key))
+    from datetime import date as _date
+    sets, params = ['org_checked=?'], [_date.today().isoformat()]
+    if result.get('status'):
+        sets.append('org_status=?')
+        params.append(result['status'])
+    if result.get('reg_date'):
+        sets.append('reg_date=?')
+        params.append(result['reg_date'])
+    params += [role, org_key]
+    db.execute(f'UPDATE org_directory SET {", ".join(sets)} WHERE role=? AND org_key=?', params)
+    # официальное название — в алиасы (каноническое имя не трогаем)
+    for nm in (result.get('name_official'), result.get('name_short')):
+        if nm:
+            resolve_org(db, role, nm, org_key, source='orginfo')
+    db.commit()
+    bits = [b for b in (result.get('status'), result.get('reg_date'),
+                        result.get('opf'), result.get('director')) if b]
+    session['flash'] = 'orginfo.uz: ' + (' · '.join(bits) or 'данные получены')
+    return redirect(url_for('directory_detail', role=role, org_key=org_key))
+
+
 @app.route('/directory/bulk-reyting', methods=['POST'])
 def directory_bulk_reyting():
     """Массовое обновление рейтингов для всех карточек с ИНН (запускается вручную)."""
