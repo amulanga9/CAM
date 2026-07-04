@@ -26,7 +26,18 @@ CHECK_LABELS = {
     'no_developer': 'Нет застройщика у активного объекта',
     'young_company_big_project': 'Компании меньше 2 лет, а объект крупный (5+ корпусов)',
     'price_outlier': 'Цена м² сильно выбивается из рынка',
+    # ── специфика Шаффофа ──
+    'coords_outside_tashkent': 'Координаты вне Ташкента (или lat/lng перепутаны)',
+    'zero_blocks_active': 'Активный ЖК с 0 корпусов на портале (портал не заполнил)',
+    'zero_apartments': 'Жилой объект с 0 квартир на портале',
+    'no_deadline_active': 'Активный объект без дедлайна',
+    'deadline_min_max_differ': 'deadline_min ≠ deadline_max (несколько разрешений с разными сроками)',
+    'self_contractor': 'Застройщик = подрядчик (сам себе строит)',
+    'delivered_no_closed_at': 'Статус «сдан», но нет closed_at (сдача не подтверждена документом)',
 }
+
+# Ташкент и окрестности (запас на область)
+TASHKENT_BBOX = (40.9, 68.6, 41.6, 69.9)  # lat_min, lng_min, lat_max, lng_max
 
 
 def _fp(check, entity_id, extra=''):
@@ -110,6 +121,27 @@ def run_checks(conn):
         # нет координат
         if r['lat'] is None or r['lng'] is None:
             findings.append(('no_coords', 'low', 'complex', cid, f'{cid}: нет координат', ''))
+        else:
+            la, lo = _num(r['lat']), _num(r['lng'])
+            lat_min, lng_min, lat_max, lng_max = TASHKENT_BBOX
+            if la and lo and not (lat_min <= la <= lat_max and lng_min <= lo <= lng_max):
+                swapped = (lat_min <= lo <= lat_max and lng_min <= la <= lng_max)
+                findings.append(('coords_outside_tashkent', 'medium', 'complex', cid,
+                                 f'{cid}: координаты ({la:.4f}, {lo:.4f}) вне Ташкента'
+                                 + (' — похоже, lat/lng перепутаны' if swapped else ''),
+                                 f'{la:.3f},{lo:.3f}'))
+
+        # активный без дедлайна
+        if active and not r['deadline']:
+            findings.append(('no_deadline_active', 'medium', 'complex', cid,
+                             f'{cid}: активный объект без дедлайна', ''))
+
+        # застройщик = подрядчик
+        if (r['developer_inn'] and r['contractor_inn']
+                and str(r['developer_inn']).strip() == str(r['contractor_inn']).strip()):
+            findings.append(('self_contractor', 'low', 'complex', cid,
+                             f"{r['project_name'] or cid}: застройщик и подрядчик — одно юрлицо "
+                             f"({r['developer_name']})", ''))
 
         # нет застройщика у активного
         if active and not (r['developer_name'] or r['developer_inn']):
@@ -123,6 +155,33 @@ def run_checks(conn):
             findings.append(('blocks_mismatch', 'medium', 'complex', cid,
                              f'{cid}: корпусов у нас {int(bt)}, в Shaffof {int(bs)}',
                              f'{bt}/{bs}'))
+
+        # ── специфика Шаффофа ────────────────────────────────────────────
+        # портал не заполнил корпуса у активного ЖК
+        if active and bt is not None and bt == 0:
+            findings.append(('zero_blocks_active', 'low', 'complex', cid,
+                             f'{cid}: на портале 0 корпусов у активного объекта', ''))
+
+        # жилой объект с 0 квартир
+        apts = _num(raw.get('apartments_count'))
+        if active and apts is not None and apts == 0:
+            findings.append(('zero_apartments', 'low', 'complex', cid,
+                             f'{cid}: на портале 0 квартир', ''))
+
+        # несколько разрешений с разными сроками (deadline_min != deadline_max)
+        dmin, dmax = raw.get('deadline_min'), raw.get('deadline_max')
+        if dmin and dmax and dmin != dmax:
+            findings.append(('deadline_min_max_differ', 'medium', 'complex', cid,
+                             f'{cid}: сроки разрешений расходятся: {dmin} … {dmax} '
+                             f'(взят {r["deadline"]})', f'{dmin}/{dmax}'))
+
+        # «сдан», но нет подтверждающего closed_at
+        if r['case_status_clean'] == 'delivered':
+            closed = raw.get('closed_at') or raw.get('delivery_date_fact')
+            if not closed:
+                findings.append(('delivered_no_closed_at', 'medium', 'complex', cid,
+                                 f'{cid}: статус «сдан», но нет даты сдачи (closed_at) — '
+                                 f'сдача не подтверждена документом', ''))
 
         # молодая компания + крупный объект
         if r['dev_reg_date'] and bt and bt >= 5 and r['created_at']:
