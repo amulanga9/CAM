@@ -96,6 +96,9 @@
                 text-decoration:none;font-size:12.5px">
         {{ r.name_canonical or '—' }}
       </a>
+      {% if r.org_status and 'ктив' not in r.org_status %}
+        <span class="badge stopped" style="font-size:9px;padding:1px 6px;margin-left:4px">{{ r.org_status }}</span>
+      {% endif %}
       {% if r.notes %}
         <div style="font-size:10.5px;color:var(--text-dim);margin-top:2px;
                     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px"

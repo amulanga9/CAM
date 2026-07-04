@@ -111,6 +111,13 @@ def fetch_orginfo(inn, timeout=15):
         if m3:
             reg_date = f'{m3.group(3)}-{m3.group(2)}-{m3.group(1)}'
 
+    def code_only(v):
+        # "152 -" / "41201 -" -> "152" / "41201"
+        if not v:
+            return v
+        m4 = re.match(r'(\d+)', v)
+        return m4.group(1) if m4 else v
+
     result = {
         'inn': inn,
         'url': card_url,
@@ -119,8 +126,8 @@ def fetch_orginfo(inn, timeout=15):
         'status': after('Статус') or after('Holati'),
         'reg_date': reg_date,
         'reg_authority': after('Регистрирующий орган'),
-        'opf': after('ОПФ'),
-        'oked': after('ОКЭД') or after('OKED'),
+        'opf': code_only(after('ОПФ')),
+        'oked': code_only(after('ОКЭД') or after('OKED')),
         'address': after('Адрес') or after('Manzil'),
         'director': after('Руководитель') or after('Rahbar'),
         'charter_capital': after('Уставный фонд') or after('Ustav fondi'),
@@ -131,8 +138,63 @@ def fetch_orginfo(inn, timeout=15):
     return result
 
 
+def _bulk_orginfo():
+    """python3 org_enrich.py bulk [limit]
+
+    Обходит все ИНН-карточки справочника, сохраняет статус (активна/
+    ликвидирована), дату регистрации и официальные названия (в алиасы).
+    ~1 сек на организацию, весь справочник ≈ 11 минут. Прерванный запуск
+    можно повторить — уже проверенные сегодня пропускаются.
+    """
+    import os
+    import sqlite3
+    import sys
+    import time
+    from datetime import date as _date
+
+    limit = int(sys.argv[2]) if len(sys.argv) > 2 else None
+    db_path = os.path.join(os.path.dirname(__file__), 'cam_admin.db')
+    conn = sqlite3.connect(db_path)
+    today = _date.today().isoformat()
+
+    rows = conn.execute(
+        "SELECT role, org_key FROM org_directory WHERE key_type='inn' "
+        "AND (org_checked IS NULL OR org_checked < ?) "
+        "ORDER BY objects_count DESC", (today,)).fetchall()
+    if limit:
+        rows = rows[:limit]
+
+    ok = errors = liq = 0
+    for i, (role, inn) in enumerate(rows, 1):
+        result = fetch_orginfo(inn)
+        if result.get('error'):
+            errors += 1
+            print(f'[{i}/{len(rows)}] {inn}: ошибка — {result["error"]}', flush=True)
+        else:
+            sets, params = ['org_checked=?'], [today]
+            if result.get('status'):
+                sets.append('org_status=?')
+                params.append(result['status'])
+                if 'ктив' not in result['status'] and 'ctive' not in result['status']:
+                    liq += 1
+            if result.get('reg_date'):
+                sets.append('reg_date=?')
+                params.append(result['reg_date'])
+            params.append(inn)
+            conn.execute(f'UPDATE org_directory SET {", ".join(sets)} WHERE org_key=?', params)
+            conn.commit()
+            ok += 1
+            print(f'[{i}/{len(rows)}] {inn}: {result.get("status")} · {result.get("reg_date")}', flush=True)
+        if i < len(rows):
+            time.sleep(1.0)
+    print(f'\nитого: проверено {ok}, НЕ активных: {liq}, ошибок {errors}')
+
+
 if __name__ == '__main__':
     import sys
+    if len(sys.argv) > 1 and sys.argv[1] == 'bulk':
+        _bulk_orginfo()
+        sys.exit(0)
     if len(sys.argv) > 2 and sys.argv[1] == 'orginfo':
         print(json.dumps(fetch_orginfo(sys.argv[2]), ensure_ascii=False, indent=2))
         sys.exit(0)

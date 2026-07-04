@@ -737,7 +737,7 @@ def directory():
     sql = '''
         SELECT d.role, d.org_key, d.key_type, d.name_canonical,
                d.rating, d.objects_count, d.bad_pct, d.overdue_pct,
-               d.first_seen, d.last_seen, d.needs_review, d.notes, d.reg_date,
+               d.first_seen, d.last_seen, d.needs_review, d.notes, d.reg_date, d.org_status,
                CAST((julianday('now') - julianday(d.reg_date)) / 365.25 AS REAL) AS age_years,
                COUNT(a.raw_name) AS alias_count
         FROM org_directory d
