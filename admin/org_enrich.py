@@ -68,8 +68,64 @@ def probe(inn):
     return results
 
 
+import html as html_lib
+import re
+
+ORGINFO_SEARCH = 'https://orginfo.uz/ru/search/all/?q={inn}'
+
+
+def fetch_orginfo(inn, timeout=15):
+    """orginfo.uz не имеет JSON-API (страница рендерится на сервере),
+    поэтому скачиваем HTML и вытаскиваем поля. Автоматически, без ручной работы.
+
+    Возвращает dict с полями или {'error': ...}.
+    """
+    try:
+        _, _, search_html = try_url(ORGINFO_SEARCH.format(inn=inn), timeout=timeout)
+    except Exception as e:
+        return {'error': f'поиск: {e}', 'inn': inn}
+
+    # ссылка на карточку организации из результатов поиска
+    m = re.search(r'href="(/ru/organization/[^"]+)"', search_html)
+    if not m:
+        return {'error': 'организация не найдена в поиске', 'inn': inn}
+    card_url = 'https://orginfo.uz' + html_lib.unescape(m.group(1))
+
+    try:
+        _, _, page = try_url(card_url, timeout=timeout)
+    except Exception as e:
+        return {'error': f'карточка: {e}', 'inn': inn, 'url': card_url}
+
+    text = re.sub(r'<[^>]+>', '\n', page)
+    text = html_lib.unescape(text)
+    text = re.sub(r'\n\s*\n+', '\n', text)
+
+    def after(label):
+        m2 = re.search(re.escape(label) + r'\s*\n\s*([^\n]+)', text, re.IGNORECASE)
+        return m2.group(1).strip() if m2 else None
+
+    result = {
+        'inn': inn,
+        'url': card_url,
+        'name': None,
+        'status': after('Статус') or after('Holati'),
+        'reg_date': after('Дата регистрации') or after("Ro'yxatdan o'tgan sana"),
+        'oked': after('ОКЭД') or after('OKED'),
+        'address': after('Адрес') or after('Manzil'),
+        'director': after('Руководитель') or after('Rahbar'),
+        'charter_capital': after('Уставный фонд') or after('Ustav fondi'),
+    }
+    mt = re.search(r'<title>([^<]+)</title>', page)
+    if mt:
+        result['name'] = html_lib.unescape(mt.group(1)).split('|')[0].strip()
+    return result
+
+
 if __name__ == '__main__':
     import sys
+    if len(sys.argv) > 2 and sys.argv[1] == 'orginfo':
+        print(json.dumps(fetch_orginfo(sys.argv[2]), ensure_ascii=False, indent=2))
+        sys.exit(0)
     inn = sys.argv[1] if len(sys.argv) > 1 else '305171188'
     print(f'Диагностика источников по ИНН {inn}\n' + '=' * 60)
     for r in probe(inn):
