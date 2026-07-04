@@ -17194,36 +17194,20 @@ function openModal(id) {
       </div>
     </div>
 
-    <!-- CTA -->
+    <!-- Полный отчёт -->
     <div style="background:var(--surface-2);border:1px solid var(--border-2);border-radius:12px;
       padding:20px;text-align:center;margin-top:4px">
       <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">
         ${dangerCount} критических · ${warnCount} предупреждений
       </div>
       <div style="font-size:11px;color:var(--text-dim);margin-bottom:16px;line-height:1.5">
-        Полный отчёт включает: аффилиационную сеть, детали застройщика и подрядчика,
-        историю портфеля, рекомендации и юридический ликбез
+        Полный отчёт: аффилиационная сеть, детали застройщика и подрядчика,
+        история портфеля, рекомендации и юридический ликбез
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <button onclick="unlockReport('${d.cam_id}')" class="buy-btn primary"
-          style="background:var(--accent)">
-          ${T().btn_single}
-        </button>
-        <button onclick="unlockReport('${d.cam_id}')" class="buy-btn primary">
-          ${T().btn_triple}
-        </button>
-      </div>
-      <button onclick="unlockReport('${d.cam_id}')" class="buy-btn secondary"
-        style="width:100%;margin-top:0">
-        ${T().btn_sub}
+      <button onclick="showDemoReport('${d.cam_id}')" class="buy-btn primary"
+        style="background:var(--accent);width:100%">
+        Смотреть полный отчёт
       </button>
-      <div style="margin-top:12px">
-        <button onclick="showDemoReport('${d.cam_id}')"
-          style="background:none;border:none;color:var(--accent);font:500 11px var(--font-ui);
-          cursor:pointer;text-decoration:underline;text-underline-offset:3px">
-          ${T().btn_demo}
-        </button>
-      </div>
     </div>
   `;
 
@@ -17482,10 +17466,6 @@ function showDemoReport(id) {
   buildLikbez(d);
 }
 
-function unlockReport(id) {
-  // В MVP — открываем демо
-  showDemoReport(id);
-}
 
 
 
@@ -17640,9 +17620,6 @@ function closeModal() {
   document.body.style.overflow='';
 }
 
-function handleBuy(type,camId) {
-  alert({'single':'Отчёт $7\ncam@cam.uz','compare':'3 ЖК $15\ncam@cam.uz','sub':'Подписка $40/мес\ncam@cam.uz'}[type]);
-}
 
 
 
@@ -17725,8 +17702,6 @@ ru: {
   market_low:'0 — Надёжный', market_mid:'50', market_high:'100 — Максимальный риск',
   cta_count: (d,w)=>`${d} критических · ${w} предупреждений`,
   cta_sub:'Полный отчёт включает: аффилиационную сеть, детали застройщика и подрядчика, историю портфеля, рекомендации и юридический ликбез',
-  btn_single:'Один объект — $7', btn_triple:'3 объекта — $15',
-  btn_sub:'Подписка — $40/мес · неограниченный доступ',
   btn_demo:'Посмотреть демо полного отчёта',
   flag_mortgage:'Ипотека одобрена', flag_permit:'Разрешение есть',
   flag_resale_ok:'Вторичка есть', flag_resale_no:'Нет вторички', flag_no_reestr:'Нет в реестре',
@@ -17825,8 +17800,6 @@ uz: {
   market_low:"0 — Ishonchli", market_mid:"50", market_high:"100 — Maksimal xavf",
   cta_count: (d,w)=>`${d} kritik · ${w} ogohlantirish`,
   cta_sub:"To'liq hisobot: affiliation tarmog'i, quruvchi va pudratchi tafsilotlari, tavsiyalar",
-  btn_single:"Bir ob'ekt — $7", btn_triple:"3 ob'ekt — $15",
-  btn_sub:"Obuna — $40/oy · Cheklanmagan kirish",
   btn_demo:"To'liq hisobot demosini ko'rish",
   flag_mortgage:"Ipoteka ma'qullangan", flag_permit:"Ruxsatnoma bor",
   flag_resale_ok:"Ikkilamchi bor", flag_resale_no:"Ikkilamchi yo'q", flag_no_reestr:"Reyestrda yo'q",
@@ -17925,8 +17898,6 @@ en: {
   market_low:"0 — Reliable", market_mid:"50", market_high:"100 — Maximum risk",
   cta_count: (d,w)=>`${d} critical · ${w} warnings`,
   cta_sub:"Full report includes: affiliation network, developer & contractor details, portfolio history, recommendations and legal guide",
-  btn_single:"One project — $7", btn_triple:"3 projects — $15",
-  btn_sub:"Subscription — $40/mo · unlimited access",
   btn_demo:"View full report demo",
   flag_mortgage:"Mortgage approved", flag_permit:"Permit available",
   flag_resale_ok:"Resales available", flag_resale_no:"No resales", flag_no_reestr:"Not in registry",
