@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}Инспектор — CAM admin{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap">
+  <h2 style="margin:0">Инспектор данных</h2>
+  <div style="flex:1"></div>
+  <form method="post" action="{{ url_for('inspector_run') }}" style="margin:0">
+    <button style="border:1px solid var(--accent);background:rgba(57,255,196,.07);color:var(--accent);
+                   border-radius:5px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit">
+      ▶ Прогнать проверки
+    </button>
+  </form>
+</div>
+<p style="color:var(--text-dim);font-size:11.5px;margin-bottom:14px;line-height:1.6">
+  Автоматические проверки находят подозрительное — вы решаете: <b style="color:var(--bad)">Подтвердить</b>
+  (это реальная проблема) или <b style="color:var(--text-dim)">Отклонить</b> (ложная тревога).
+  Решённое не всплывает при повторных прогонах.
+</p>
+
+{# ── статусы ──────────────────────────────────────────────────────────────── #}
+<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+  {% for s, label in (('new','Новые'),('confirmed','Подтверждённые'),('dismissed','Отклонённые')) %}
+  <a href="{{ url_for('inspector_page', status=s) }}"
+     style="padding:4px 12px;border-radius:14px;text-decoration:none;font-size:11.5px;
+            border:1px solid {% if status==s %}var(--accent){% else %}var(--border-hi){% endif %};
+            color:{% if status==s %}var(--accent){% else %}var(--text-dim){% endif %};
+            background:{% if status==s %}rgba(57,255,196,.08){% else %}var(--bg-raised){% endif %}">
+    {{ label }} <span style="opacity:.6">{{ counts.get(s, 0) }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+{# ── фильтр по проверке ──────────────────────────────────────────────────── #}
+{% if check_counts %}
+<div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap">
+  {% for c, n in check_counts %}
+  <a href="{{ url_for('inspector_page', status=status, check='' if check==c else c) }}"
+     style="padding:3px 10px;border-radius:4px;text-decoration:none;font-size:10.5px;
+            border:1px solid {% if check==c %}var(--warn){% else %}var(--border){% endif %};
+            color:{% if check==c %}var(--warn){% else %}var(--text-dim){% endif %};
+            background:var(--bg-raised)">
+    {{ check_labels.get(c, c) }} · {{ n }}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:70px">Важность</th>
+      <th style="width:90px">Объект</th>
+      <th>Находка</th>
+      <th style="width:80px">Когда</th>
+      <th style="width:170px"></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for i in issues %}
+    <tr>
+      <td>
+        <span class="badge {% if i.severity=='high' %}stopped{% elif i.severity=='medium' %}unclear{% else %}cancelled{% endif %}"
+              style="font-size:9px;padding:1px 6px">{{ i.severity }}</span>
+      </td>
+      <td>
+        {% if i.entity_type == 'complex' %}
+          <a href="{{ url_for('complex_detail', cam_id=i.entity_id) }}">{{ i.entity_id }}</a>
+        {% else %}{{ i.entity_id }}{% endif %}
+      </td>
+      <td style="font-size:12px">{{ i.message }}</td>
+      <td style="font-size:11px;color:var(--text-dim)">{{ i.created_at }}</td>
+      <td>
+        {% if i.status == 'new' %}
+        <div style="display:flex;gap:6px">
+          <form method="post" action="{{ url_for('inspector_resolve', fingerprint=i.fingerprint, action='confirmed') }}" style="margin:0">
+            <button title="Да, это реальная проблема"
+                    style="border:1px solid var(--bad);background:rgba(255,93,122,.07);color:var(--bad);
+                           border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">
+              Подтвердить</button>
+          </form>
+          <form method="post" action="{{ url_for('inspector_resolve', fingerprint=i.fingerprint, action='dismissed') }}" style="margin:0">
+            <button title="Ложная тревога"
+                    style="border:1px solid var(--border-hi);background:var(--bg-raised);color:var(--text-dim);
+                           border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">
+              Отклонить</button>
+          </form>
+        </div>
+        {% else %}
+        <form method="post" action="{{ url_for('inspector_resolve', fingerprint=i.fingerprint, action='new') }}" style="margin:0">
+          <button style="border:1px solid var(--border-hi);background:transparent;color:var(--text-dim);
+                         border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit">
+            ↩ Вернуть</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" style="text-align:center;color:var(--text-dim);padding:32px">
+      Пусто. Нажмите «Прогнать проверки».
+    </td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}

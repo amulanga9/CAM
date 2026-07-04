@@ -22,6 +22,7 @@ from org_directory import ensure_schema as ensure_dir_schema, ensure_seeded as e
 import reyting_parser
 from tags import TAG_BADGE_CLASS, TAG_LABELS, ensure_tags, rebuild_tags, tag_counts, tags_for
 import merge_complexes
+import inspector as data_inspector
 
 DB_PATH = Path(__file__).parent / 'cam_admin.db'
 MANUAL_DB_PATH = Path(__file__).parent / 'cam_manual.db'
@@ -681,6 +682,52 @@ def all_complexes():
                            tag=tag, row_tags=row_tags,
                            tag_labels=TAG_LABELS, tag_badge=TAG_BADGE_CLASS,
                            tag_counts=tag_counts(db))
+
+
+@app.route('/inspector')
+def inspector_page():
+    db = get_db()
+    data_inspector.ensure_schema(db)
+    status = request.args.get('status', 'new')
+    check = request.args.get('check', '')
+    sql = 'SELECT * FROM manual.data_issues WHERE 1=1'
+    params = []
+    if status:
+        sql += ' AND status=?'
+        params.append(status)
+    if check:
+        sql += ' AND check_id=?'
+        params.append(check)
+    sql += " ORDER BY CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, created_at DESC"
+    issues = db.execute(sql, params).fetchall()
+    counts = {r[0]: r[1] for r in db.execute(
+        'SELECT status, COUNT(*) FROM manual.data_issues GROUP BY status')}
+    check_counts = db.execute(
+        "SELECT check_id, COUNT(*) FROM manual.data_issues WHERE status='new' GROUP BY check_id ORDER BY 2 DESC"
+    ).fetchall()
+    return render_template('inspector.html', issues=issues, status=status, check=check,
+                           counts=counts, check_counts=check_counts,
+                           check_labels=data_inspector.CHECK_LABELS)
+
+
+@app.route('/inspector/run', methods=['POST'])
+def inspector_run():
+    db = get_db()
+    result = data_inspector.run_checks(db)
+    session['flash'] = f"Инспектор: новых находок {result['new']} (всего сработало {result['total']})"
+    return redirect(url_for('inspector_page'))
+
+
+@app.route('/inspector/<fingerprint>/<action>', methods=['POST'])
+def inspector_resolve(fingerprint, action):
+    if action not in ('confirmed', 'dismissed', 'new'):
+        return 'bad action', 400
+    db = get_db()
+    db.execute(
+        "UPDATE manual.data_issues SET status=?, resolved_at=date('now') WHERE fingerprint=?",
+        (action, fingerprint))
+    db.commit()
+    return redirect(request.referrer or url_for('inspector_page'))
 
 
 @app.route('/duplicates')
