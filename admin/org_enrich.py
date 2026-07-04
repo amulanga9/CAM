@@ -155,6 +155,8 @@ def _bulk_orginfo():
     limit = int(sys.argv[2]) if len(sys.argv) > 2 else None
     db_path = os.path.join(os.path.dirname(__file__), 'cam_admin.db')
     conn = sqlite3.connect(db_path)
+    from org_directory import ensure_schema
+    ensure_schema(conn)  # добавит org_status/org_checked, если БД старее кода
     today = _date.today().isoformat()
 
     rows = conn.execute(
