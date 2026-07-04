@@ -48,11 +48,18 @@ def main():
     ensure_schema(conn)
     ensure_seeded(conn)
 
-    # 1. свежий парс (пока вручную: путь к CSV аргументом; автозагрузка
-    #    с портала подключается сюда, когда определимся с источником)
-    if csv_paths:
-        log(f'импорт свежего парса: {csv_paths} — ЕЩЁ НЕ ПОДКЛЮЧЁН, '
-            f'нужен формат/скрипт выгрузки (см. вопросы в чате)')
+    # 1. применить свежий парс, если есть CSV за текущий месяц
+    #    (сам парс: python3 parse_shaffof.py — 30-60 мин, гоняется отдельно)
+    month = date.today().strftime('%Y-%m')
+    raw_dir = os.path.join(BASE, 'data', 'raw', month, 'shaffof')
+    if os.path.isdir(raw_dir) and any(f.endswith('.csv') for f in os.listdir(raw_dir)):
+        import apply_parse
+        r = apply_parse.apply(month)
+        log(f"парс применён: {r['matched']} карточек, {r['history']} историй, "
+            f"{r['promoted']} переведено в «сдан», {r['unmatched']} несовпавших")
+    else:
+        log(f'свежего парса за {month} нет (data/raw/{month}/shaffof/) — '
+            f'пропускаю; для полного цикла сначала: python3 parse_shaffof.py')
 
     # 2-3. статистика и метки
     recompute_stats(conn)
