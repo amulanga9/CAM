@@ -139,20 +139,21 @@ def fetch_orginfo(inn, timeout=15):
 
 
 def _bulk_orginfo():
-    """python3 org_enrich.py bulk [limit]
+    """python3 org_enrich.py bulk [limit] [workers]
 
-    Обходит все ИНН-карточки справочника, сохраняет статус (активна/
-    ликвидирована), дату регистрации и официальные названия (в алиасы).
-    ~1 сек на организацию, весь справочник ≈ 11 минут. Прерванный запуск
-    можно повторить — уже проверенные сегодня пропускаются.
+    Обходит все ИНН-карточки справочника параллельно (по умолчанию 6
+    потоков): сохраняет статус (активна/ликвидирована) и дату регистрации.
+    Весь справочник ≈ 2-3 минуты. Прерванный запуск можно повторить —
+    уже проверенные сегодня пропускаются.
     """
     import os
     import sqlite3
     import sys
-    import time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     from datetime import date as _date
 
     limit = int(sys.argv[2]) if len(sys.argv) > 2 else None
+    workers = int(sys.argv[3]) if len(sys.argv) > 3 else 6
     db_path = os.path.join(os.path.dirname(__file__), 'cam_admin.db')
     conn = sqlite3.connect(db_path)
     from org_directory import ensure_schema
@@ -165,14 +166,23 @@ def _bulk_orginfo():
         "ORDER BY objects_count DESC", (today,)).fetchall()
     if limit:
         rows = rows[:limit]
+    inns = sorted({inn for _, inn in rows})
 
     ok = errors = liq = 0
-    for i, (role, inn) in enumerate(rows, 1):
-        result = fetch_orginfo(inn)
-        if result.get('error'):
-            errors += 1
-            print(f'[{i}/{len(rows)}] {inn}: ошибка — {result["error"]}', flush=True)
-        else:
+    done = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(fetch_orginfo, inn): inn for inn in inns}
+        for fut in as_completed(futures):
+            inn = futures[fut]
+            done += 1
+            try:
+                result = fut.result()
+            except Exception as e:
+                result = {'error': str(e)}
+            if result.get('error'):
+                errors += 1
+                print(f'[{done}/{len(inns)}] {inn}: ошибка — {result["error"]}', flush=True)
+                continue
             sets, params = ['org_checked=?'], [today]
             if result.get('status'):
                 sets.append('org_status=?')
@@ -186,9 +196,7 @@ def _bulk_orginfo():
             conn.execute(f'UPDATE org_directory SET {", ".join(sets)} WHERE org_key=?', params)
             conn.commit()
             ok += 1
-            print(f'[{i}/{len(rows)}] {inn}: {result.get("status")} · {result.get("reg_date")}', flush=True)
-        if i < len(rows):
-            time.sleep(1.0)
+            print(f'[{done}/{len(inns)}] {inn}: {result.get("status")} · {result.get("reg_date")}', flush=True)
     print(f'\nитого: проверено {ok}, НЕ активных: {liq}, ошибок {errors}')
 
 
