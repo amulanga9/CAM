@@ -85,6 +85,18 @@ def load_raw(month):
     return rows, raw_dir.parent
 
 
+def load_overrides(conn):
+    """cam_id -> set(полей, исправленных вручную). Эти поля парс НЕ трогает."""
+    protected = {}
+    cols = [r[1] for r in conn.execute('PRAGMA manual.table_info(overrides)')
+            if r[1] not in ('cam_id', 'updated_at')]
+    for row in conn.execute(f"SELECT cam_id, {', '.join(cols)} FROM manual.overrides"):
+        fields = {c for c, v in zip(cols, row[1:]) if v not in (None, '')}
+        if fields:
+            protected[row[0]] = fields
+    return protected
+
+
 def shaffof_id_index(conn):
     """object_id (str) -> cam_id по raw_json.shaffof_ids."""
     idx = {}
@@ -98,7 +110,7 @@ def shaffof_id_index(conn):
     return idx
 
 
-def apply(month=None, dry=False):
+def apply(month=None, dry=False, create_new=True):
     month = month or date.today().strftime('%Y-%m')
     admin_conn = sqlite3.connect(BASE / 'cam_admin.db')
     admin_conn.row_factory = sqlite3.Row
@@ -115,6 +127,7 @@ def apply(month=None, dry=False):
 
     parse_rows, out_dir = load_raw(month)
     idx = shaffof_id_index(admin_conn)
+    protected = load_overrides(admin_conn)
     now = datetime.now(timezone.utc).isoformat()
 
     # группируем строки парса по карточкам
@@ -140,15 +153,23 @@ def apply(month=None, dry=False):
         deadline = max((r['deadline'] or '' for r in rows)) or None
         bt = sum(int(float(r['blocks_total'] or 0)) for r in rows)
         ba = sum(int(float(r['blocks_accepted'] or 0)) for r in rows)
+        # детерминированный выбор главного разрешения (минимальный object_id),
+        # иначе у карточек с несколькими разрешениями застройщик «прыгает»
+        rows = sorted(rows, key=lambda r: int(r['object_id']))
         main = rows[0]
         new_dev = main['organization_name'] or None
         new_pud = main['pudrat_name'] or main['pudrat_direct'] or None
         new_pud_inn = str(main['pudrat_inn'] or '').strip() or None
 
+        prot = protected.get(cam_id, set())
+
+        # дедлайн: если исправлен вручную — метрики считаем от ручного
+        if 'deadline' in prot:
+            deadline = cur['deadline']
         is_overdue, days_overdue, days_remaining = compute_deadline_metrics(deadline)
         sets = ['is_overdue=?', 'days_overdue=?', 'days_remaining=?']
         params = [int(is_overdue), days_overdue, days_remaining]
-        if deadline:
+        if deadline and 'deadline' not in prot:
             sets.append('deadline=?')
             params.append(str(deadline)[:10])
         deadlines += 1
@@ -165,12 +186,29 @@ def apply(month=None, dry=False):
         ):
             if not new_val:
                 continue
+            oc = normalize_org_name(old_val) if norm else str(old_val or '').strip()
+            nc = normalize_org_name(new_val) if norm else str(new_val).strip()
+
+            # поле исправлено вручную: НЕ перезаписываем; если портал не согласен —
+            # одна запись в историю (source=parse_conflict_manual), без дублей
+            if field in prot:
+                if old_val and oc and nc and oc != nc and not dry:
+                    dup = admin_conn.execute(
+                        'SELECT 1 FROM manual.change_history '
+                        'WHERE cam_id=? AND field=? AND new_value=? AND source=?',
+                        (cam_id, field, new_val, 'parse_conflict_manual')).fetchone()
+                    if not dup:
+                        admin_conn.execute(
+                            'INSERT INTO manual.change_history '
+                            '(cam_id, field, old_value, new_value, changed_at, snapshot_date, source) '
+                            'VALUES (?,?,?,?,?,?,?)',
+                            (cam_id, field, old_val, new_val, now, month, 'parse_conflict_manual'))
+                continue
+
             if not old_val:
                 sets.append(f'{field}=?')
                 params.append(new_val)
                 continue
-            oc = normalize_org_name(old_val) if norm else str(old_val).strip()
-            nc = normalize_org_name(new_val) if norm else str(new_val).strip()
             if oc and nc and oc != nc:
                 if not dry:
                     admin_conn.execute(
@@ -196,6 +234,92 @@ def apply(month=None, dry=False):
             admin_conn.execute(
                 f'UPDATE complexes SET {", ".join(sets)} WHERE cam_id=?', params)
 
+    # ── новые объекты: прицепить к существующей карточке или выдать CAM ID ──
+    attached = created = 0
+    if create_new and unmatched:
+        import math
+
+        existing = [dict(r) for r in admin_conn.execute(
+            'SELECT cam_id, developer_inn, lat, lng, raw_json FROM complexes '
+            'WHERE lat IS NOT NULL')]
+
+        def dist_m(la1, lo1, la2, lo2):
+            dlat = (la2 - la1) * 111000
+            dlng = (lo2 - lo1) * 111000 * math.cos(math.radians(la1))
+            return math.sqrt(dlat ** 2 + dlng ** 2)
+
+        still_unmatched = []
+        for r in unmatched:
+            oid = str(r['object_id'])
+            try:
+                la, lo = float(r['lat']), float(r['long'])
+            except (TypeError, ValueError):
+                la = lo = None
+            dev_inn = str(r.get('pudrat_inn') or '').strip()  # ИНН застройщика в парсе нет,
+            org_name = r.get('organization_name') or ''
+
+            # 1) попытка прицепить к существующей карточке: <150 м и совпадает
+            #    нормализованный застройщик (organization_name)
+            host = None
+            if la and lo:
+                on = normalize_org_name(org_name)
+                for e in existing:
+                    if not e['lat'] or not e['lng']:
+                        continue
+                    if dist_m(la, lo, e['lat'], e['lng']) < 150:
+                        raw_e = json.loads(e['raw_json']) if e['raw_json'] else {}
+                        en = normalize_org_name(raw_e.get('developer_name_norm') or '')
+                        if on and en and (on == en or on in en or en in on):
+                            host = e['cam_id']
+                            break
+            if host:
+                if not dry:
+                    row_h = admin_conn.execute(
+                        'SELECT raw_json FROM complexes WHERE cam_id=?', (host,)).fetchone()
+                    raw_h = json.loads(row_h['raw_json']) if row_h['raw_json'] else {}
+                    ids = raw_h.get('shaffof_ids') or []
+                    if isinstance(ids, str):
+                        ids = re.findall(r'\d+', ids)
+                    if oid not in [str(i) for i in ids]:
+                        raw_h['shaffof_ids'] = sorted({str(i) for i in ids} | {oid})
+                        admin_conn.execute(
+                            'UPDATE complexes SET raw_json=? WHERE cam_id=?',
+                            (json.dumps(raw_h, ensure_ascii=False), host))
+                attached += 1
+                continue
+
+            # 2) новая карточка: CAM ID = GASN-<object_id> (стабильный, от портала)
+            new_cam_id = f'GASN-{oid}'
+            if admin_conn.execute('SELECT 1 FROM complexes WHERE cam_id=?',
+                                  (new_cam_id,)).fetchone():
+                continue
+            status_clean = STATUS_MAP.get((r['status'] or '').strip(), 'unclear')
+            is_ov, d_ov, d_rem = compute_deadline_metrics(r['deadline'])
+            raw_new = dict(r)
+            raw_new['shaffof_ids'] = [oid]
+            raw_new['first_parse_month'] = month
+            if not dry:
+                admin_conn.execute(
+                    '''INSERT INTO complexes
+                       (cam_id, source_sheet, project_name, lat, lng,
+                        developer_name, contractor_name, contractor_inn,
+                        created_at, deadline, case_status_raw, case_status_clean,
+                        target, is_overdue, days_overdue, days_remaining,
+                        needs_review, raw_json)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                    (new_cam_id, 'GASN_new', (r['name'] or '')[:300],
+                     la, lo, org_name or None,
+                     r.get('pudrat_name') or r.get('pudrat_direct') or None,
+                     dev_inn or None,
+                     (r['created_at'] or '')[:10] or None,
+                     (r['deadline'] or '')[:10] or None,
+                     r['status'] or None, status_clean,
+                     0, int(is_ov), d_ov, d_rem, 1,
+                     json.dumps(raw_new, ensure_ascii=False)))
+            created += 1
+            still_unmatched.append(r)
+        unmatched = [] if not dry else unmatched
+
     if not dry:
         admin_conn.commit()
         if unmatched:
@@ -205,15 +329,16 @@ def apply(month=None, dry=False):
                 w.writeheader()
                 w.writerows(unmatched)
 
-    print(f'строк парса: {len(parse_rows)} | совпало карточек: {len(per_card)} '
-          f'| несовпавших объектов: {len(unmatched)}')
+    print(f'строк парса: {len(parse_rows)} | совпало карточек: {len(per_card)}')
     print(f'дедлайны/просрочки обновлены: {deadlines}')
     print(f'историй смены застройщика/подрядчика: {history}')
     print(f'переведено в «сдан» (target=1): {promoted}')
-    if unmatched and not dry:
-        print(f'кандидаты на новые карточки: data/raw/{month}/unmatched.csv')
+    if create_new:
+        print(f'прицеплено к существующим карточкам: {attached}')
+        print(f'создано новых карточек (GASN-*, на проверку): {created}')
     return {'matched': len(per_card), 'unmatched': len(unmatched),
-            'history': history, 'promoted': promoted}
+            'history': history, 'promoted': promoted,
+            'attached': attached, 'created': created}
 
 
 if __name__ == '__main__':

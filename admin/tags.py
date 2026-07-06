@@ -16,9 +16,11 @@ SHEET_TO_TAG = {
     'Серая зона (1-2 года)': 'grey_zone',
     'Строящиеся_сматченные': 'building_matched',
     'Строящиеся_несматченные': 'building_unmatched',
+    'GASN_new': 'new_from_parse',
 }
 
 TAG_LABELS = {
+    'new_from_parse': 'Новые с портала',
     'training': 'Обучение',
     'delivered_list': 'Все построенные',
     'bad_cases': 'Плохие кейсы',
@@ -35,6 +37,7 @@ TAG_BADGE_CLASS = {
     'grey_zone': 'unclear',
     'building_matched': 'in_progress',
     'building_unmatched': 'rebranded',
+    'new_from_parse': 'unclear',
 }
 
 
