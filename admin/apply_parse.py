@@ -170,14 +170,29 @@ def apply(month=None, dry=False, create_new=True):
         sets = ['is_overdue=?', 'days_overdue=?', 'days_remaining=?']
         params = [int(is_overdue), days_overdue, days_remaining]
         if deadline and 'deadline' not in prot:
+            new_dl = str(deadline)[:10]
+            old_dl = (cur['deadline'] or '')[:10]
+            if old_dl and new_dl != old_dl and not dry:
+                admin_conn.execute(
+                    'INSERT INTO manual.change_history '
+                    '(cam_id, field, old_value, new_value, changed_at, snapshot_date, source) '
+                    'VALUES (?,?,?,?,?,?,?)',
+                    (cam_id, 'deadline', old_dl, new_dl, now, month, 'weekly_parse'))
             sets.append('deadline=?')
-            params.append(str(deadline)[:10])
+            params.append(new_dl)
         deadlines += 1
 
         if new_status == 'delivered' and cur['case_status_clean'] != 'delivered':
             sets += ['case_status_clean=?', 'target=?']
             params += ['delivered', 1]
             promoted += 1
+            if not dry:
+                admin_conn.execute(
+                    'INSERT INTO manual.change_history '
+                    '(cam_id, field, old_value, new_value, changed_at, snapshot_date, source) '
+                    'VALUES (?,?,?,?,?,?,?)',
+                    (cam_id, 'case_status_clean', cur['case_status_clean'], 'delivered',
+                     now, month, 'weekly_parse'))
 
         for field, old_val, new_val, norm in (
             ('developer_name', cur['developer_name'], new_dev, True),
@@ -321,6 +336,21 @@ def apply(month=None, dry=False, create_new=True):
         unmatched = [] if not dry else unmatched
 
     if not dry:
+        admin_conn.execute('''
+            CREATE TABLE IF NOT EXISTS manual.parse_runs (
+                month      TEXT PRIMARY KEY,
+                run_at     TEXT,
+                matched    INTEGER, history  INTEGER, promoted INTEGER,
+                attached   INTEGER, created  INTEGER
+            )''')
+        admin_conn.execute(
+            'INSERT INTO manual.parse_runs (month, run_at, matched, history, promoted, attached, created) '
+            'VALUES (?,?,?,?,?,?,?) '
+            'ON CONFLICT(month) DO UPDATE SET run_at=excluded.run_at, '
+            'matched=excluded.matched, '
+            'history=history+excluded.history, promoted=promoted+excluded.promoted, '
+            'attached=attached+excluded.attached, created=created+excluded.created',
+            (month, now, len(per_card), history, promoted, attached, created))
         admin_conn.commit()
         if unmatched:
             path = out_dir / 'unmatched.csv'

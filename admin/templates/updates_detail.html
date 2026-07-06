@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}Обновления {{ month }} — CAM admin{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:14px">
+  <a href="{{ url_for('updates_page') }}" style="color:var(--text-dim);font-size:12px">← Все обновления</a>
+</div>
+
+<h2 style="margin-bottom:10px">Парс {{ month }}</h2>
+
+{% if run %}
+<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:20px">
+  <div class="stat"><b style="color:var(--accent)">+{{ run.created or 0 }}</b><span>новых объектов</span></div>
+  <div class="stat"><b style="color:var(--warn)">{{ changed|length }}</b><span>обновлено старых</span></div>
+  <div class="stat"><b>{{ run.attached or 0 }}</b><span>прицеплено разрешений</span></div>
+  <div class="stat"><b style="color:var(--good)">{{ run.promoted or 0 }}</b><span>переведено в «сдан»</span></div>
+  {% if conflicts %}
+  <div class="stat"><b style="color:var(--bad)">{{ conflicts|length }}</b><span>конфликтов с ручными</span></div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Изменения в существующих ────────────────────────────────────────────── #}
+{% if changed %}
+<div class="card">
+  <h3>Изменения в существующих карточках ({{ changed|length }})</h3>
+  {% for cam_id, info in changed.items() %}
+  <div style="border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:10px;background:var(--bg-raised)">
+    <div style="margin-bottom:8px">
+      <a href="{{ url_for('complex_detail', cam_id=cam_id) }}"
+         style="font-weight:700;color:var(--text-bright)">{{ cam_id }}</a>
+      <span style="color:var(--text-dim);font-size:12px">— {{ (info.project_name or '—')|truncate(70) }}</span>
+    </div>
+    {% for ch in info.fields %}
+    <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px;font-size:12px">
+      <span style="color:var(--text-dim);min-width:130px">{{ field_labels.get(ch.field, ch.field) }}:</span>
+      <span style="color:var(--bad);text-decoration:line-through;opacity:.75">{{ (ch.old_value or '—')|truncate(50) }}</span>
+      <span style="color:var(--text-dim)">→</span>
+      <span style="color:var(--good);font-weight:600;background:rgba(57,255,196,.08);
+                   padding:1px 6px;border-radius:3px">{{ (ch.new_value or '—')|truncate(50) }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ── Конфликты с ручной очисткой ─────────────────────────────────────────── #}
+{% if conflicts %}
+<div class="card" style="border-color:var(--bad)">
+  <h3 style="color:var(--bad)">Портал не согласен с ручными правками ({{ conflicts|length }})</h3>
+  <p style="color:var(--text-dim);font-size:11.5px;margin-top:-6px">
+    Эти поля вы чистили вручную — парс их НЕ перезаписал. Проверьте, кто прав.
+  </p>
+  <table>
+    <tr><th>Объект</th><th>Поле</th><th>Ваше значение (сохранено)</th><th>Портал считает</th></tr>
+    {% for c in conflicts %}
+    <tr>
+      <td><a href="{{ url_for('complex_detail', cam_id=c.cam_id) }}">{{ c.cam_id }}</a></td>
+      <td style="font-size:11.5px">{{ field_labels.get(c.field, c.field) }}</td>
+      <td style="color:var(--good);font-size:12px">{{ (c.old_value or '—')|truncate(50) }}</td>
+      <td style="color:var(--warn);font-size:12px">{{ (c.new_value or '—')|truncate(50) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{# ── Новые объекты ───────────────────────────────────────────────────────── #}
+{% if new_cards %}
+<div class="card">
+  <h3>Новые объекты этого парса ({{ new_cards|length }})</h3>
+  <table>
+    <tr><th>CAM ID</th><th>Название</th><th>Статус</th><th>Дедлайн</th><th></th></tr>
+    {% for n in new_cards %}
+    <tr>
+      <td><a href="{{ url_for('complex_detail', cam_id=n.cam_id) }}">{{ n.cam_id }}</a></td>
+      <td style="font-size:12px">{{ (n.project_name or '—')|truncate(70) }}</td>
+      <td><span class="badge {{ n.case_status_clean or 'unclear' }}">{{ n.case_status_clean or '?' }}</span></td>
+      <td style="font-size:11.5px;color:var(--text-dim)">{{ n.deadline or '—' }}</td>
+      <td>{% if n.needs_review %}<span class="badge unclear" style="font-size:9px">на проверке</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% if not changed and not new_cards and not conflicts %}
+<div class="card" style="text-align:center;color:var(--text-dim);padding:40px">
+  За {{ month }} изменений не зафиксировано.
+</div>
+{% endif %}
+
+{% endblock %}

@@ -704,6 +704,62 @@ def all_complexes():
                            tag_counts=tag_counts(db))
 
 
+@app.route('/updates')
+def updates_page():
+    db = get_db()
+    db.execute('''CREATE TABLE IF NOT EXISTS manual.parse_runs (
+        month TEXT PRIMARY KEY, run_at TEXT,
+        matched INTEGER, history INTEGER, promoted INTEGER,
+        attached INTEGER, created INTEGER)''')
+    runs = db.execute(
+        'SELECT * FROM manual.parse_runs ORDER BY month DESC').fetchall()
+    return render_template('updates.html', runs=runs)
+
+
+@app.route('/updates/<month>')
+def updates_detail(month):
+    db = get_db()
+    db.execute('''CREATE TABLE IF NOT EXISTS manual.change_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cam_id TEXT NOT NULL, field TEXT NOT NULL,
+        old_value TEXT, new_value TEXT,
+        changed_at TEXT, snapshot_date TEXT, source TEXT)''')
+    db.execute('''CREATE TABLE IF NOT EXISTS manual.parse_runs (
+        month TEXT PRIMARY KEY, run_at TEXT,
+        matched INTEGER, history INTEGER, promoted INTEGER,
+        attached INTEGER, created INTEGER)''')
+    run = db.execute('SELECT * FROM manual.parse_runs WHERE month=?', (month,)).fetchone()
+    # изменения в существующих карточках, сгруппированные по объекту
+    changes_raw = db.execute(
+        '''SELECT h.*, c.project_name FROM manual.change_history h
+           LEFT JOIN complexes c ON c.cam_id = h.cam_id
+           WHERE h.snapshot_date=? AND h.source IN ('weekly_parse','pipeline_auto')
+           ORDER BY h.cam_id, h.id''', (month,)).fetchall()
+    changed = {}
+    for ch in changes_raw:
+        changed.setdefault(ch['cam_id'], {'project_name': ch['project_name'],
+                                          'fields': []})['fields'].append(ch)
+    # конфликты с ручными правками
+    conflicts = db.execute(
+        '''SELECT h.*, c.project_name FROM manual.change_history h
+           LEFT JOIN complexes c ON c.cam_id = h.cam_id
+           WHERE h.snapshot_date=? AND h.source='parse_conflict_manual'
+           ORDER BY h.cam_id''', (month,)).fetchall()
+    # новые карточки этого месяца
+    new_cards = [r for r in db.execute(
+        "SELECT cam_id, project_name, case_status_clean, deadline, needs_review, raw_json "
+        "FROM complexes WHERE source_sheet='GASN_new' ORDER BY cam_id")
+        if json.loads(r['raw_json'] or '{}').get('first_parse_month') == month]
+    field_labels = {
+        'developer_name': 'Застройщик', 'contractor_name': 'Подрядчик',
+        'contractor_inn': 'ИНН подрядчика', 'deadline': 'Дедлайн',
+        'case_status_clean': 'Статус',
+    }
+    return render_template('updates_detail.html', month=month, run=run,
+                           changed=changed, conflicts=conflicts,
+                           new_cards=new_cards, field_labels=field_labels)
+
+
 @app.route('/inspector')
 def inspector_page():
     db = get_db()

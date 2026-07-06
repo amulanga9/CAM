@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Обновления — CAM admin{% endblock %}
+{% block content %}
+
+<h2 style="margin-bottom:6px">Обновления с портала</h2>
+<p style="color:var(--text-dim);font-size:11.5px;margin-bottom:16px">
+  Каждый прогон парса: сколько новых объектов, сколько обновлений в старых.
+  Клик по строке — детальный просмотр с подсветкой изменённых полей.
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Месяц парса</th>
+      <th>Когда применён</th>
+      <th style="text-align:center">Новых объектов</th>
+      <th style="text-align:center">Прицеплено к старым</th>
+      <th style="text-align:center">Изменений в старых</th>
+      <th style="text-align:center">Переведено в «сдан»</th>
+      <th style="text-align:center">Совпало карточек</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in runs %}
+    <tr onclick="location='{{ url_for('updates_detail', month=r.month) }}'" style="cursor:pointer">
+      <td><a href="{{ url_for('updates_detail', month=r.month) }}"
+             style="font-weight:700">{{ r.month }}</a></td>
+      <td style="color:var(--text-dim);font-size:11.5px">{{ (r.run_at or '')[:16].replace('T',' ') }}</td>
+      <td style="text-align:center">
+        <b style="color:{% if r.created %}var(--accent){% else %}var(--text-dim){% endif %};font-size:15px">
+          +{{ r.created or 0 }}</b>
+      </td>
+      <td style="text-align:center;color:var(--text-dim)">{{ r.attached or 0 }}</td>
+      <td style="text-align:center">
+        <b style="color:{% if r.history %}var(--warn){% else %}var(--text-dim){% endif %};font-size:15px">
+          {{ r.history or 0 }}</b>
+      </td>
+      <td style="text-align:center;color:var(--good)">{{ r.promoted or 0 }}</td>
+      <td style="text-align:center;color:var(--text-dim)">{{ r.matched or 0 }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" style="text-align:center;color:var(--text-dim);padding:32px">
+      Прогонов ещё не было. Запустите: python3 parse_shaffof.py, затем python3 update_weekly.py
+    </td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% endblock %}
