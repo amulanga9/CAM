@@ -35,10 +35,12 @@ RATING_MAP = {'AAA': 9, 'AA': 8, 'A': 7, 'BBB': 6, 'BB': 5, 'B': 4,
               'CCC': 3, 'CC': 2, 'C': 1, 'DDD': -1, 'DD': -2, 'D': -3}
 DIFF_MAP = {'I': 1, 'II': 2, 'III': 3, 'IV': 4}
 
+# возраст компаний исключён: на текущей выборке стабильно ухудшает AUC
+# (тест абляции: -0.03), вернуть при росте выборки/покрытия
 FEATURES = [
     'difficulty', 'apartments_count', 'floors_max', 'blocks_total',
-    'developer_rating', 'dev_built', 'dev_bad', 'dev_age_years',
-    'contractor_rating', 'pod_built', 'pod_bad', 'pod_age_years',
+    'developer_rating', 'dev_built', 'dev_bad',
+    'contractor_rating', 'pod_built', 'pod_bad',
 ]
 
 BAD_STATUSES = {'stopped', 'frozen', 'cancelled'}
@@ -72,11 +74,15 @@ def build_dataset(conn):
         pod_inn = str(r['contractor_inn'] or '').strip()
 
         def age_years(inn):
+            # возраст на момент старта стройки (а не на сегодня) — иначе
+            # у старых сданных объектов возраст завышен и фича смещена
             d = reg_dates.get(inn)
             if not d:
                 return None
+            ref = (r['created_at'] or '')[:10]
             try:
-                return (date.today() - date.fromisoformat(d[:10])).days / 365.25
+                ref_d = date.fromisoformat(ref) if ref else date.today()
+                return (ref_d - date.fromisoformat(d[:10])).days / 365.25
             except ValueError:
                 return None
 
@@ -218,7 +224,8 @@ def train():
 
     # финальное обучение на всей выборке (агрегаты по всей train-выборке)
     df_full = add_org_aggregates(df_train, df_train, loo=True)
-    final = make_models()[best]
+    from sklearn.calibration import CalibratedClassifierCV
+    final = CalibratedClassifierCV(make_models()[best], method='isotonic', cv=3)
     final.fit(df_full[FEATURES], df_train['target'].astype(int))
 
     MODELS_DIR.mkdir(exist_ok=True)
