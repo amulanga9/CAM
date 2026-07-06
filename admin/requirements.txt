@@ -1,2 +1,7 @@
 flask
 openpyxl
+requests
+pandas
+scikit-learn
+xgboost
+joblib
