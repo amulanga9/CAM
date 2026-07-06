@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+admin/backups/
+admin/*.db
+admin/*.db-wal
+admin/*.db-shm

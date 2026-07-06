@@ -9,6 +9,7 @@ CAM admin v1 — очередь проверки устаревших/неясн
 """
 import csv
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -99,13 +100,32 @@ def original_value(raw_dict, field):
 
 
 app = Flask(__name__)
-app.secret_key = 'cam-admin-dev-key'
+# секрет из окружения; дефолт оставлен для локальной работы одного оператора
+app.secret_key = os.environ.get('CAM_SECRET', 'cam-admin-dev-key')
+
+# необязательный пароль на всю админку: export CAM_PASSWORD=...
+CAM_PASSWORD = os.environ.get('CAM_PASSWORD')
+
+
+@app.before_request
+def _check_auth():
+    if not CAM_PASSWORD:
+        return None
+    from flask import request as _rq
+    auth = _rq.authorization
+    if auth and auth.password == CAM_PASSWORD:
+        return None
+    from flask import Response
+    return Response('Требуется пароль', 401,
+                    {'WWW-Authenticate': 'Basic realm="CAM admin"'})
 
 
 def get_db():
     if 'db' not in g:
         g.db = sqlite3.connect(DB_PATH)
         g.db.row_factory = sqlite3.Row
+        g.db.execute('PRAGMA journal_mode=WAL')      # надёжнее при параллельных читателях
+        g.db.execute('PRAGMA synchronous=NORMAL')
         g.db.execute(f"ATTACH DATABASE '{MANUAL_DB_PATH}' AS manual")
         build_manual_schema(g.db)  # на случай если app.py запущен раньше первого import_master.py
         migrate_complexes(g.db)    # подтягивает новые колонки, если БД старее текущей схемы
@@ -1007,4 +1027,5 @@ def export_public():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    # debug только если явно попросили: CAM_DEBUG=1 python3 app.py
+    app.run(debug=bool(os.environ.get('CAM_DEBUG')), host='0.0.0.0')

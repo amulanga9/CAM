@@ -43,6 +43,10 @@ def main():
     from tags import rebuild_tags
     import inspector
 
+    # 0. бэкап перед любыми изменениями
+    import backup as backup_mod
+    log(f'бэкап баз: {backup_mod.backup()}')
+
     build_manual_schema(conn)
     migrate_complexes(conn)
     ensure_schema(conn)
