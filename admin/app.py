@@ -857,6 +857,8 @@ def directory():
     role = request.args.get('role', 'developer')
     q = request.args.get('q', '').strip()
     review_only = request.args.get('review', '') == '1'
+    inn_only = request.args.get('inn', '') == '1'
+    norating = request.args.get('norating', '') == '1'
     sql = '''
         SELECT d.role, d.org_key, d.key_type, d.name_canonical,
                d.rating, d.objects_count, d.bad_pct, d.overdue_pct,
@@ -865,14 +867,25 @@ def directory():
                COUNT(a.raw_name) AS alias_count
         FROM org_directory d
         LEFT JOIN org_aliases a ON a.role=d.role AND a.org_key=d.org_key
-        WHERE d.role=?
+        WHERE 1=1
     '''
-    params = [role]
+    params = []
     if q:
-        sql += ' AND (d.name_canonical LIKE ? OR d.org_key LIKE ?)'
-        params += [f'%{q}%', f'%{q}%']
+        # поиск — по ОБЕИМ ролям сразу (ИНН может быть и у застройщика, и у
+        # подрядчика; вкладка роли при поиске не ограничивает)
+        sql += (' AND (d.name_canonical LIKE ? OR d.org_key LIKE ? '
+                '      OR EXISTS (SELECT 1 FROM org_aliases al WHERE al.role=d.role '
+                '                 AND al.org_key=d.org_key AND al.raw_name LIKE ?))')
+        params += [f'%{q}%', f'%{q}%', f'%{q}%']
+    else:
+        sql += ' AND d.role=?'
+        params.append(role)
     if review_only:
         sql += ' AND d.needs_review=1'
+    if inn_only:
+        sql += " AND d.key_type='inn'"
+    if norating:
+        sql += ' AND d.rating IS NULL'
     sql += ' GROUP BY d.role, d.org_key ORDER BY d.objects_count DESC, d.name_canonical'
     rows = db.execute(sql, params).fetchall()
     counts = {
@@ -887,9 +900,18 @@ def directory():
             'SELECT role, COUNT(*) FROM org_directory WHERE needs_review=1 GROUP BY role'
         )
     }
+    norating_counts = {
+        r[0]: r[1]
+        for r in db.execute(
+            "SELECT role, COUNT(*) FROM org_directory "
+            "WHERE rating IS NULL AND key_type='inn' GROUP BY role"
+        )
+    }
     return render_template('directory.html', rows=rows, role=role, q=q,
                            review_only=review_only, counts=counts,
-                           review_counts=review_counts)
+                           review_counts=review_counts,
+                           inn_only=inn_only, norating=norating,
+                           norating_counts=norating_counts)
 
 
 @app.route('/directory/<role>/<path:org_key>')

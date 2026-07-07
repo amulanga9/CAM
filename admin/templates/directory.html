@@ -45,19 +45,34 @@
 
   <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
 
-  {% if review_only %}
+  <a href="{{ url_for('directory', role=role, q=q, review='' if review_only else '1', inn='1' if inn_only else '', norating='1' if norating else '') }}"
+     style="padding:5px 12px;border-radius:5px;text-decoration:none;font-size:12px;
+            border:1px solid {% if review_only %}var(--warn){% else %}var(--border-hi){% endif %};
+            color:{% if review_only %}var(--warn){% else %}var(--text-dim){% endif %};
+            background:{% if review_only %}rgba(255,184,77,.1){% else %}var(--bg-raised){% endif %}">
+    ! На проверке
+  </a>
+
+  <a href="{{ url_for('directory', role=role, q=q, review='1' if review_only else '', inn='' if inn_only else '1', norating='1' if norating else '') }}"
+     style="padding:5px 12px;border-radius:5px;text-decoration:none;font-size:12px;
+            border:1px solid {% if inn_only %}var(--accent2){% else %}var(--border-hi){% endif %};
+            color:{% if inn_only %}var(--accent2){% else %}var(--text-dim){% endif %};
+            background:{% if inn_only %}rgba(74,216,255,.1){% else %}var(--bg-raised){% endif %}">
+    с ИНН
+  </a>
+
+  <a href="{{ url_for('directory', role=role, q=q, review='1' if review_only else '', inn='1' if inn_only else '', norating='' if norating else '1') }}"
+     style="padding:5px 12px;border-radius:5px;text-decoration:none;font-size:12px;
+            border:1px solid {% if norating %}var(--accent){% else %}var(--border-hi){% endif %};
+            color:{% if norating %}var(--accent){% else %}var(--text-dim){% endif %};
+            background:{% if norating %}rgba(57,255,196,.08){% else %}var(--bg-raised){% endif %}">
+    без рейтинга <span style="opacity:.6;font-size:10.5px">{{ norating_counts.get(role, 0) }}</span>
+  </a>
+
+  {% if review_only or inn_only or norating %}
     <a href="{{ url_for('directory', role=role, q=q) }}"
-       style="padding:5px 12px;border-radius:5px;text-decoration:none;font-size:12px;
-              border:1px solid var(--border-hi);color:var(--text-dim);background:var(--bg-raised)">
-      Все
-    </a>
-    <span style="font-size:12px;color:var(--warn)">• фильтр: только на проверке</span>
-  {% else %}
-    <a href="{{ url_for('directory', role=role, q=q, review='1') }}"
-       style="padding:5px 12px;border-radius:5px;text-decoration:none;font-size:12px;
-              border:1px solid var(--warn);color:var(--warn);background:rgba(255,184,77,.05)">
-      ! На проверке
-    </a>
+       style="padding:5px 10px;border-radius:5px;text-decoration:none;font-size:12px;
+              border:1px solid var(--border-hi);color:var(--text-dim);background:transparent">✕</a>
   {% endif %}
 </div>
 

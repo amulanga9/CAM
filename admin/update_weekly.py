@@ -39,7 +39,7 @@ def main():
     conn.execute(f"ATTACH '{os.path.join(BASE, 'cam_manual.db')}' AS manual")
 
     from import_master import build_manual_schema, migrate_complexes
-    from org_directory import ensure_schema, ensure_seeded, recompute_stats, rebuild_objects_count
+    from org_directory import ensure_schema, ensure_seeded, recompute_stats, rebuild_objects_count, seed_from_complexes
     from tags import rebuild_tags
     import inspector
 
@@ -65,7 +65,8 @@ def main():
         log(f'свежего парса за {month} нет (data/raw/{month}/shaffof/) — '
             f'пропускаю; для полного цикла сначала: python3 parse_shaffof.py')
 
-    # 2-3. статистика и метки
+    # 2-3. синхронизация справочника (новые организации), статистика и метки
+    seed_from_complexes(conn)   # идемпотентно: новые орг → карточки, старые → last_seen
     recompute_stats(conn)
     rebuild_objects_count(conn)
     rebuild_tags(conn)

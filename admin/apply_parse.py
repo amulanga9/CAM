@@ -335,6 +335,16 @@ def apply(month=None, dry=False, create_new=True):
             still_unmatched.append(r)
         unmatched = [] if not dry else unmatched
 
+    # ── синхронизация справочника: новые застройщики/подрядчики из парса
+    #    получают карточки (needs_review=1), у старых обновляется last_seen ──
+    if not dry:
+        from org_directory import seed_from_complexes
+        before_orgs = admin_conn.execute('SELECT COUNT(*) FROM org_directory').fetchone()[0]
+        seed_from_complexes(admin_conn)
+        new_orgs = admin_conn.execute('SELECT COUNT(*) FROM org_directory').fetchone()[0] - before_orgs
+        if new_orgs:
+            print(f'новых организаций в справочнике: {new_orgs}')
+
     if not dry:
         admin_conn.execute('''
             CREATE TABLE IF NOT EXISTS manual.parse_runs (
