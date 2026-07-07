@@ -68,6 +68,20 @@
         <span class="summary-vals">{{ row.developer_name or '—' }}{% if row.developer_inn %} · ИНН {{ row.developer_inn }}{% endif %}</span>
       </summary>
       <div class="block-body edit-grid">
+        {% if dir_orgs.developer %}
+        {% set d = dir_orgs.developer %}
+        <div class="wide" style="border:1px solid var(--border-hi);border-radius:6px;padding:8px 12px;
+                                 background:var(--bg);display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px">
+          <span style="color:var(--text-dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em">Справочник</span>
+          <a href="{{ url_for('directory_detail', role='developer', org_key=d.inn) }}"
+             style="font-weight:600">{{ d.name_canonical or d.inn }}</a>
+          {% if d.rating %}<span class="badge {% if d.rating=='D' %}stopped{% elif d.rating=='C' %}unclear{% else %}delivered{% endif %}">{{ d.rating }}</span>
+          {% else %}<span style="color:var(--text-dim)">рейтинг не задан</span>{% endif %}
+          {% if d.org_status and 'ктив' not in d.org_status %}<span class="badge stopped" style="font-size:9px">{{ d.org_status }}</span>{% endif %}
+          <span style="color:var(--text-dim)">{{ d.objects_count or 0 }} объектов
+            {% if d.overdue_pct is not none %}· просрочка {{ '%.0f'|format(d.overdue_pct) }}%{% endif %}</span>
+        </div>
+        {% endif %}
         <label>Застройщик<input type="text" name="developer_name" value="{{ row.developer_name or '' }}"></label>
         <label>ИНН застройщика<input type="text" name="developer_inn" value="{{ row.developer_inn or '' }}"></label>
         <label>Рейтинг застройщика<input type="text" name="developer_rating" value="{{ row.developer_rating or '' }}"></label>
@@ -84,6 +98,20 @@
         <span class="summary-vals">{{ row.contractor_name or '—' }}{% if row.contractor_inn %} · ИНН {{ row.contractor_inn }}{% endif %}</span>
       </summary>
       <div class="block-body edit-grid">
+        {% if dir_orgs.contractor %}
+        {% set d = dir_orgs.contractor %}
+        <div class="wide" style="border:1px solid var(--border-hi);border-radius:6px;padding:8px 12px;
+                                 background:var(--bg);display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px">
+          <span style="color:var(--text-dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em">Справочник</span>
+          <a href="{{ url_for('directory_detail', role='contractor', org_key=d.inn) }}"
+             style="font-weight:600">{{ d.name_canonical or d.inn }}</a>
+          {% if d.rating %}<span class="badge {% if d.rating=='D' %}stopped{% elif d.rating=='C' %}unclear{% else %}delivered{% endif %}">{{ d.rating }}</span>
+          {% else %}<span style="color:var(--text-dim)">рейтинг не задан</span>{% endif %}
+          {% if d.org_status and 'ктив' not in d.org_status %}<span class="badge stopped" style="font-size:9px">{{ d.org_status }}</span>{% endif %}
+          <span style="color:var(--text-dim)">{{ d.objects_count or 0 }} объектов
+            {% if d.overdue_pct is not none %}· просрочка {{ '%.0f'|format(d.overdue_pct) }}%{% endif %}</span>
+        </div>
+        {% endif %}
         <label>Подрядчик<input type="text" name="contractor_name" value="{{ row.contractor_name or '' }}"></label>
         <label>ИНН подрядчика<input type="text" name="contractor_inn" value="{{ row.contractor_inn or '' }}"></label>
         <label>Рейтинг подрядчика<input type="text" name="contractor_rating" value="{{ row.contractor_rating or '' }}"></label>

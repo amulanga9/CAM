@@ -626,10 +626,21 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None, delay_p
         "SELECT DISTINCT holding_name FROM complexes WHERE holding_name IS NOT NULL AND holding_name != '' ORDER BY holding_name"
     ).fetchall()]
     holdings = sorted(set(holdings) | set(get_affiliation_groups(db)))
+    # живые данные из справочника по ИНН (рейтинг, каноническое имя, статус)
+    dir_orgs = {}
+    for role_key, inn in (('developer', row['developer_inn']),
+                          ('contractor', row['contractor_inn'])):
+        inn = str(inn or '').strip()
+        if inn:
+            d = db.execute(
+                'SELECT name_canonical, rating, org_status, objects_count, overdue_pct '
+                'FROM org_directory WHERE role=? AND org_key=?', (role_key, inn)).fetchone()
+            if d:
+                dir_orgs[role_key] = {'inn': inn, **dict(d)}
     return render_template(
         'complex_detail.html', row=row, raw=raw, history=history,
         verdicts=VERDICTS, rebrands=rebrands, phases=phases, holdings=holdings,
-        proofs=proofs,
+        proofs=proofs, dir_orgs=dir_orgs,
         obj_tags=tags_for(db, cam_id), tag_labels=TAG_LABELS, tag_badge=TAG_BADGE_CLASS,
         delay_flag=delay_flag, delay_types=DELAY_TYPES, proof_types=PROOF_TYPES,
         rebrand_form=rebrand_form or {}, rebrand_error=rebrand_error,
