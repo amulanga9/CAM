@@ -242,7 +242,7 @@ def dashboard():
     ).fetchone()[0]
     dir_total = db.execute('SELECT COUNT(*) FROM org_directory').fetchone()[0]
     dir_rated = db.execute(
-        'SELECT COUNT(*) FROM org_directory WHERE rating IS NOT NULL AND rating != ""'
+        'SELECT COUNT(*) FROM org_directory WHERE portal_rating IS NOT NULL AND rating != ""'
     ).fetchone()[0]
 
     return render_template(
@@ -633,7 +633,7 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None, delay_p
         inn = str(inn or '').strip()
         if inn:
             d = db.execute(
-                'SELECT name_canonical, rating, org_status, objects_count, overdue_pct '
+                'SELECT name_canonical, portal_rating AS rating, portal_score, org_status, objects_count, overdue_pct '
                 'FROM org_directory WHERE role=? AND org_key=?', (role_key, inn)).fetchone()
             if d:
                 dir_orgs[role_key] = {'inn': inn, **dict(d)}
@@ -897,7 +897,7 @@ def directory():
     if inn_only:
         sql += " AND d.key_type='inn'"
     if norating:
-        sql += ' AND d.rating IS NULL'
+        sql += ' AND d.portal_rating IS NULL'
     sql += ' GROUP BY d.role, d.org_key ORDER BY d.objects_count DESC, d.name_canonical'
     rows = db.execute(sql, params).fetchall()
     counts = {
@@ -916,7 +916,7 @@ def directory():
         r[0]: r[1]
         for r in db.execute(
             "SELECT role, COUNT(*) FROM org_directory "
-            "WHERE rating IS NULL AND key_type='inn' GROUP BY role"
+            "WHERE portal_rating IS NULL AND key_type='inn' GROUP BY role"
         )
     }
     return render_template('directory.html', rows=rows, role=role, q=q,
@@ -1085,26 +1085,6 @@ def directory_rebuild():
     db = get_db()
     recompute_stats(db)
     return redirect(request.referrer or url_for('directory'))
-
-
-@app.route('/directory/<role>/<path:org_key>/rating', methods=['POST'])
-def directory_set_rating(role, org_key):
-    """Быстрая установка рейтинга (из списка, инлайн)."""
-    db = get_db()
-    rating = request.form.get('rating', '').strip() or None
-    db.execute(
-        'UPDATE org_directory SET rating=? WHERE role=? AND org_key=?',
-        (rating, role, org_key)
-    )
-    db.commit()
-    return redirect(request.referrer or url_for('directory', role=role))
-
-
-@app.errorhandler(405)
-def method_not_allowed(e):
-    """POST-адрес открыли как страницу (refresh/назад/новая вкладка) — возвращаем на дашборд."""
-    session['flash'] = 'Это действие выполняется кнопкой, а не открытием ссылки — вернула на дашборд.'
-    return redirect(url_for('dashboard'))
 
 
 @app.route('/export-public', methods=['POST'])

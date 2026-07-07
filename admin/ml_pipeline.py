@@ -64,10 +64,10 @@ def build_dataset(conn):
     """Собирает DataFrame из БД: и обучающие (target известен), и активные."""
     reg_dates = {r['org_key']: r['reg_date'] for r in conn.execute(
         "SELECT org_key, reg_date FROM org_directory WHERE reg_date IS NOT NULL")}
-    ratings_dir = {}
-    for r in conn.execute("SELECT role, org_key, rating, portal_rating FROM org_directory "
-                          "WHERE rating IS NOT NULL OR portal_rating IS NOT NULL"):
-        ratings_dir[(r['role'], r['org_key'])] = r['rating'] or r['portal_rating']
+    # только ОФИЦИАЛЬНЫЙ рейтинг портала (AAA..DDD); ручных оценок нет —
+    # оценка риска это выход модели (cam_score), а не входная фича
+    ratings_dir = {(r['role'], r['org_key']): r['portal_rating'] for r in conn.execute(
+        "SELECT role, org_key, portal_rating FROM org_directory WHERE portal_rating IS NOT NULL")}
 
     rows = []
     for r in conn.execute('SELECT * FROM complexes'):
@@ -92,8 +92,7 @@ def build_dataset(conn):
         def rating_of(role, inn, legacy):
             g = ratings_dir.get((role, inn))
             if g:
-                # ручной A-D или портальный AAA..DDD — оба через одну шкалу
-                return {'A': 7, 'B': 4, 'C': 1, 'D': -3}.get(g) or RATING_MAP.get(g)
+                return RATING_MAP.get(g)
             return RATING_MAP.get((legacy or '').strip() or None)
 
         status = r['case_status_clean']

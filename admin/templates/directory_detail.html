@@ -24,11 +24,11 @@
         {{ 'Застройщик' if role=='developer' else 'Подрядчик' }}
       </div>
       <div style="display:flex;gap:20px;flex-wrap:wrap">
-        {% if org.rating %}
+        {% if org.portal_rating %}
           <div class="stat">
-            <b><span class="badge {% if 'D' in org.rating %}unclear{% elif 'C' in org.rating %}in_progress{% else %}delivered{% endif %}">
-              {{ org.rating }}</span></b>
-            <span>рейтинг</span>
+            <b><span class="badge {% if 'D' in org.portal_rating %}stopped{% elif 'C' in org.portal_rating %}unclear{% else %}delivered{% endif %}">
+              {{ org.portal_rating }}</span></b>
+            <span>рейтинг (офиц.){% if org.portal_score is not none %} · {{ '%.1f'|format(org.portal_score) }} балла{% endif %}</span>
           </div>
         {% endif %}
         <div class="stat"><b>{{ org.objects_count or 0 }}</b><span>объектов</span></div>
@@ -120,7 +120,7 @@
 <details class="block">
   <summary>
     <span class="summary-title">Редактировать карточку</span>
-    <span class="summary-vals">название, рейтинг</span>
+    <span class="summary-vals">название, заметки</span>
   </summary>
   <div class="block-body">
     <form method="post" action="{{ url_for('directory_edit', role=role, org_key=org.org_key) }}"
@@ -130,38 +130,6 @@
           Каноническое название <span style="color:var(--text-dim);font-weight:400">(как отображается в админке)</span>
         </div>
         <input type="text" name="name_canonical" value="{{ org.name_canonical or '' }}" style="width:100%">
-      </div>
-      <div>
-        <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
-          Рейтинг <span style="color:var(--text-dim);font-weight:400">(ставите вручную)</span>
-        </div>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          {% for grade, label, color in (
-              ('A','Надёжный','var(--good)'),
-              ('B','Хороший','#4ad8ff'),
-              ('C','Средний','var(--warn)'),
-              ('D','Слабый','var(--bad)')
-          ) %}
-            <label style="display:flex;align-items:center;gap:5px;cursor:pointer;
-                          font-size:12px;padding:5px 10px;border-radius:5px;
-                          border:1px solid {% if org.rating==grade %}{{ color }}{% else %}var(--border-hi){% endif %};
-                          background:{% if org.rating==grade %}rgba(100,100,100,.15){% else %}var(--bg-raised){% endif %};
-                          color:{{ color }}">
-              <input type="radio" name="rating" value="{{ grade }}"
-                     {% if org.rating==grade %}checked{% endif %}
-                     style="accent-color:{{ color }}">
-              <b>{{ grade }}</b> <span style="color:var(--text-dim)">{{ label }}</span>
-            </label>
-          {% endfor %}
-          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;
-                        font-size:12px;padding:5px 10px;border-radius:5px;
-                        border:1px solid var(--border-hi);color:var(--text-dim);
-                        background:var(--bg-raised)">
-            <input type="radio" name="rating" value=""
-                   {% if not org.rating %}checked{% endif %}>
-            Не задан
-          </label>
-        </div>
       </div>
       <div>
         <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">Заметки</div>
