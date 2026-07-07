@@ -40,6 +40,35 @@
 </style>
 {% endif %}
 
+{% if permits %}
+<div class="card">
+  <h3>Разрешения / очереди на портале ({{ permits|length }})</h3>
+  <p style="color:var(--text-dim);font-size:11.5px;margin-top:-4px">
+    Каждое разрешение Шаффофа отслеживается отдельно: свой статус, дедлайн, корпуса.
+    Обновляется каждым парсом; исчезнувшие с портала подсвечены.
+  </p>
+  <table>
+    <tr><th>id портала</th><th>Название/блок</th><th>Статус</th><th>Дедлайн</th>
+        <th style="text-align:center">Корпуса</th><th style="text-align:center">Квартир</th>
+        <th>Виден на портале</th></tr>
+    {% for p in permits %}
+    <tr {% if p.vanished %}style="background:rgba(255,93,122,.06)"{% endif %}>
+      <td style="font-size:11.5px;color:var(--accent2)">{{ p.object_id }}</td>
+      <td style="font-size:12px">{{ (p.name or '—')|truncate(60) }}</td>
+      <td><span class="badge {{ p.status_clean or 'unclear' }}">{{ p.status_clean or '?' }}</span></td>
+      <td style="font-size:11.5px">{{ p.deadline or '—' }}</td>
+      <td style="text-align:center;font-weight:600">{{ p.blocks_accepted or 0 }}/{{ p.blocks_total or '?' }}</td>
+      <td style="text-align:center">{{ p.apartment_count or '—' }}</td>
+      <td style="font-size:11px">
+        {% if p.vanished %}<span class="badge stopped" style="font-size:9px">ИСЧЕЗ (был {{ p.last_seen_month }})</span>
+        {% else %}<span style="color:var(--text-dim)">{{ p.last_seen_month }}</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
 <div class="card">
   <h3>Карточка объекта (доступно для дозаполнения/исправления)</h3>
   <form method="post" action="{{ url_for('edit_complex', cam_id=row.cam_id) }}">

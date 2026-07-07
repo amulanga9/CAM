@@ -110,6 +110,65 @@ def shaffof_id_index(conn):
     return idx
 
 
+def ensure_permits_schema(conn):
+    """Сущность «разрешение/очередь»: каждый портальный object_id живёт и
+    отслеживается отдельно ВНУТРИ карточки ЖК (статус, дедлайн, корпуса)."""
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS permits (
+            object_id        TEXT PRIMARY KEY,   -- id на портале
+            cam_id           TEXT,               -- к какому ЖК привязано
+            name             TEXT,               -- напр. "Manhattan, Блок 7"
+            status           TEXT,
+            status_clean     TEXT,
+            created_at       TEXT,
+            deadline         TEXT,
+            closed_at        TEXT,
+            blocks_total     INTEGER,
+            blocks_accepted  INTEGER,
+            apartment_count  INTEGER,
+            floor_max        TEXT,
+            first_seen_month TEXT,
+            last_seen_month  TEXT,
+            vanished         INTEGER DEFAULT 0   -- 1 = пропал из свежего парса
+        )''')
+
+
+def upsert_permits(conn, parse_rows, idx, month):
+    """Обновляет permits из свежего парса; отмечает исчезнувшие."""
+    ensure_permits_schema(conn)
+    for oid, r in parse_rows.items():
+        cam_id = idx.get(oid)
+        conn.execute('''
+            INSERT INTO permits (object_id, cam_id, name, status, status_clean,
+                created_at, deadline, closed_at, blocks_total, blocks_accepted,
+                apartment_count, floor_max, first_seen_month, last_seen_month, vanished)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)
+            ON CONFLICT(object_id) DO UPDATE SET
+                cam_id=COALESCE(excluded.cam_id, cam_id),
+                name=excluded.name, status=excluded.status,
+                status_clean=excluded.status_clean,
+                deadline=excluded.deadline, closed_at=excluded.closed_at,
+                blocks_total=excluded.blocks_total,
+                blocks_accepted=excluded.blocks_accepted,
+                apartment_count=excluded.apartment_count,
+                floor_max=excluded.floor_max,
+                last_seen_month=excluded.last_seen_month, vanished=0
+        ''', (oid, cam_id, (r['name'] or '')[:200], r['status'] or None,
+              STATUS_MAP.get((r['status'] or '').strip(), 'unclear'),
+              (r['created_at'] or '')[:10] or None,
+              (r['deadline'] or '')[:10] or None,
+              (r['closed_at'] or '')[:10] or None,
+              int(float(r['blocks_total'] or 0)) or None,
+              int(float(r['blocks_accepted'] or 0)),
+              int(float(r['apartment_count'] or 0)) or None,
+              r['floor_max'] or None, month, month))
+    # исчезнувшие: были в permits, в этом парсе нет
+    conn.execute(
+        'UPDATE permits SET vanished=1 WHERE last_seen_month < ? '
+        'AND object_id NOT IN (SELECT object_id FROM permits WHERE last_seen_month = ?)',
+        (month, month))
+
+
 def apply(month=None, dry=False, create_new=True):
     month = month or date.today().strftime('%Y-%m')
     admin_conn = sqlite3.connect(BASE / 'cam_admin.db')
@@ -301,6 +360,7 @@ def apply(month=None, dry=False, create_new=True):
                             'UPDATE complexes SET raw_json=? WHERE cam_id=?',
                             (json.dumps(raw_h, ensure_ascii=False), host))
                 attached += 1
+                idx[oid] = host   # permits привяжутся этим же прогоном
                 continue
 
             # 2) новая карточка: CAM ID = GASN-<object_id> (стабильный, от портала)
@@ -332,6 +392,7 @@ def apply(month=None, dry=False, create_new=True):
                      0, int(is_ov), d_ov, d_rem, 1,
                      json.dumps(raw_new, ensure_ascii=False)))
             created += 1
+            idx[oid] = new_cam_id   # permits привяжутся этим же прогоном
             still_unmatched.append(r)
         unmatched = [] if not dry else unmatched
 
@@ -375,6 +436,10 @@ def apply(month=None, dry=False, create_new=True):
             vanished += 1
         if vanished:
             print(f'ИСЧЕЗЛО с портала (id были, теперь нет): {vanished} — в Инспектор')
+
+    # ── permits: каждое разрешение отслеживается отдельно внутри карточки ──
+    if not dry:
+        upsert_permits(admin_conn, parse_rows, idx, month)
 
     # ── синхронизация справочника: новые застройщики/подрядчики из парса
     #    получают карточки (needs_review=1), у старых обновляется last_seen ──

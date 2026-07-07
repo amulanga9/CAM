@@ -138,6 +138,19 @@ def export(admin_db=ADMIN_DB, manual_db=MANUAL_DB, data_dir=DATA_DIR):
     proofs      = load_proofs(manual_conn)
     org_ratings = load_org_ratings(admin_conn)
 
+    permits_by_cam = {}
+    try:
+        for p in admin_conn.execute(
+                'SELECT cam_id, object_id, name, status_clean, deadline, '
+                'blocks_total, blocks_accepted, apartment_count, vanished, last_seen_month '
+                'FROM permits WHERE cam_id IS NOT NULL'):
+            permits_by_cam.setdefault(p[0], []).append({
+                'object_id': p[1], 'name': p[2], 'status': p[3], 'deadline': p[4],
+                'blocks_total': p[5], 'blocks_accepted': p[6],
+                'apartments': p[7], 'vanished': p[8], 'last_seen': p[9]})
+    except Exception:
+        pass
+
     cols = [r[1] for r in admin_conn.execute('PRAGMA table_info(complexes)')]
     rows = admin_conn.execute('SELECT * FROM complexes ORDER BY cam_id').fetchall()
 
@@ -145,6 +158,7 @@ def export(admin_db=ADMIN_DB, manual_db=MANUAL_DB, data_dir=DATA_DIR):
     for row in rows:
         rec = build_complex_record(row, cols, overrides, reviews, delay_flags, org_ratings)
         rec['proofs'] = proofs.get(rec['cam_id'], [])
+        rec['permits'] = permits_by_cam.get(rec['cam_id'], [])
 
         # write per-complex file
         path = os.path.join(data_dir, 'complex', f"{rec['cam_id']}.json")

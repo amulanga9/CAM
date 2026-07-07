@@ -622,6 +622,11 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None, delay_p
     proofs = db.execute(
         'SELECT * FROM manual.complex_proofs WHERE cam_id=? ORDER BY id', (cam_id,)
     ).fetchall()
+    try:
+        permits = db.execute(
+            'SELECT * FROM permits WHERE cam_id=? ORDER BY name', (cam_id,)).fetchall()
+    except Exception:
+        permits = []
     holdings = [r[0] for r in db.execute(
         "SELECT DISTINCT holding_name FROM complexes WHERE holding_name IS NOT NULL AND holding_name != '' ORDER BY holding_name"
     ).fetchall()]
@@ -640,7 +645,7 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None, delay_p
     return render_template(
         'complex_detail.html', row=row, raw=raw, history=history,
         verdicts=VERDICTS, rebrands=rebrands, phases=phases, holdings=holdings,
-        proofs=proofs, dir_orgs=dir_orgs,
+        proofs=proofs, dir_orgs=dir_orgs, permits=permits,
         obj_tags=tags_for(db, cam_id), tag_labels=TAG_LABELS, tag_badge=TAG_BADGE_CLASS,
         delay_flag=delay_flag, delay_types=DELAY_TYPES, proof_types=PROOF_TYPES,
         rebrand_form=rebrand_form or {}, rebrand_error=rebrand_error,
