@@ -56,8 +56,11 @@ def fetch_reyting(inn, timeout=10):
         req = urllib.request.Request(
             url,
             headers={
-                'User-Agent': 'Mozilla/5.0',
-                'Accept': 'application/json',
+                'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                               'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'),
+                'Accept': 'application/json, text/javascript, */*; q=0.01',
+                # без этого заголовка многие Laravel-порталы отдают HTML вместо JSON
+                'X-Requested-With': 'XMLHttpRequest',
                 'Referer': 'https://reyting.mc.uz/',
             }
         )
@@ -68,8 +71,10 @@ def fetch_reyting(inn, timeout=10):
 
     try:
         data = json.loads(body)
-    except json.JSONDecodeError as e:
-        return {'error': f'JSON parse error: {e}', 'inn': inn}
+    except json.JSONDecodeError:
+        # показываем начало ответа — сразу видно, HTML это, капча или редирект
+        preview = ' '.join(body[:160].split())
+        return {'error': f'не-JSON ответ: «{preview}»', 'inn': inn}
 
     if not data.get('success'):
         return {'error': 'success=false', 'inn': inn, 'raw': data}
