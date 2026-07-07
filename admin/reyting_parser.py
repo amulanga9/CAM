@@ -22,10 +22,38 @@ API: GET https://reyting.mc.uz/get-modal?inn=<ИНН>
   developer — Застройщик
 """
 import time
-import urllib.request
 import json
 
+import requests
+
+BASE_URL = 'https://reyting.mc.uz/'
 REYTING_URL = 'https://reyting.mc.uz/get-modal?inn={inn}'
+
+HEADERS = {
+    'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                   'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'),
+    'Accept': 'application/json, text/javascript, */*; q=0.01',
+    'X-Requested-With': 'XMLHttpRequest',
+    'Referer': 'https://reyting.mc.uz/',
+}
+
+_session = None
+
+
+def _get_session():
+    """Сессия с куками: сначала «прогрев» главной страницей — без её
+    session-куки портал отвечает HTML вместо JSON."""
+    global _session
+    if _session is None:
+        s = requests.Session()
+        s.headers.update(HEADERS)
+        try:
+            s.get(BASE_URL, timeout=15,
+                  headers={'Accept': 'text/html,application/xhtml+xml'})
+        except requests.RequestException:
+            pass
+        _session = s
+    return _session
 
 # категории в порядке приоритета для contractors и developers
 CONTRACTOR_CATS = ('umum', 'yol', 'mel', 'loyiha')
@@ -53,19 +81,8 @@ def fetch_reyting(inn, timeout=10):
         return None
     url = REYTING_URL.format(inn=str(inn).strip())
     try:
-        req = urllib.request.Request(
-            url,
-            headers={
-                'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                               'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'),
-                'Accept': 'application/json, text/javascript, */*; q=0.01',
-                # без этого заголовка многие Laravel-порталы отдают HTML вместо JSON
-                'X-Requested-With': 'XMLHttpRequest',
-                'Referer': 'https://reyting.mc.uz/',
-            }
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            body = resp.read().decode('utf-8')
+        resp = _get_session().get(url, timeout=timeout)
+        body = resp.text
     except Exception as e:
         return {'error': str(e), 'inn': inn}
 
@@ -73,7 +90,7 @@ def fetch_reyting(inn, timeout=10):
         data = json.loads(body)
     except json.JSONDecodeError:
         # показываем начало ответа — сразу видно, HTML это, капча или редирект
-        preview = ' '.join(body[:160].split())
+        preview = ' '.join(body[:400].split())
         return {'error': f'не-JSON ответ: «{preview}»', 'inn': inn}
 
     if not data.get('success'):
