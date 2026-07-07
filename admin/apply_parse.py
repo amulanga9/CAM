@@ -335,6 +335,47 @@ def apply(month=None, dry=False, create_new=True):
             still_unmatched.append(r)
         unmatched = [] if not dry else unmatched
 
+    # ── исчезновения: id был привязан к карточке, но в новом парсе его нет ──
+    #    (кейс Манхэттена: блоки 5 и 6 удалены с портала молча, 404 в API)
+    vanished = 0
+    if not dry:
+        admin_conn.execute('''
+            CREATE TABLE IF NOT EXISTS manual.data_issues (
+                fingerprint TEXT PRIMARY KEY,
+                check_id    TEXT NOT NULL,
+                severity    TEXT NOT NULL,
+                entity_type TEXT NOT NULL,
+                entity_id   TEXT NOT NULL,
+                message     TEXT,
+                status      TEXT DEFAULT 'new',
+                created_at  TEXT,
+                resolved_at TEXT
+            )''')
+        import hashlib
+        parsed_ids = set(parse_rows.keys())
+        missing = {sid: cam_id for sid, cam_id in idx.items() if sid not in parsed_ids}
+        # предохранитель: если «исчезло» слишком много — вероятно, парс
+        # неполный (оборвался/узкий диапазон), а не массовое удаление
+        if len(missing) > max(20, len(idx) * 0.10):
+            print(f'ВНИМАНИЕ: {len(missing)} из {len(idx)} привязанных id нет в парсе — '
+                  f'похоже на неполный парс, исчезновения НЕ регистрирую')
+            missing = {}
+        for sid, cam_id in missing.items():
+            fp = hashlib.md5(f'vanished_from_portal|{cam_id}|{sid}'.encode()).hexdigest()[:16]
+            if admin_conn.execute('SELECT 1 FROM manual.data_issues WHERE fingerprint=?',
+                                  (fp,)).fetchone():
+                continue
+            admin_conn.execute(
+                'INSERT INTO manual.data_issues '
+                '(fingerprint, check_id, severity, entity_type, entity_id, message, status, created_at) '
+                "VALUES (?,?,?,?,?,?,'new',date('now'))",
+                (fp, 'vanished_from_portal', 'high', 'complex', cam_id,
+                 f'{cam_id}: портальный id={sid} был в прошлых парсах, '
+                 f'в парсе {month} отсутствует — объект удалён с портала?'))
+            vanished += 1
+        if vanished:
+            print(f'ИСЧЕЗЛО с портала (id были, теперь нет): {vanished} — в Инспектор')
+
     # ── синхронизация справочника: новые застройщики/подрядчики из парса
     #    получают карточки (needs_review=1), у старых обновляется last_seen ──
     if not dry:

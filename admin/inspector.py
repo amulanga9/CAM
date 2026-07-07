@@ -34,6 +34,7 @@ CHECK_LABELS = {
     'deadline_min_max_differ': 'deadline_min ≠ deadline_max (несколько разрешений с разными сроками)',
     'self_contractor': 'Застройщик = подрядчик (сам себе строит)',
     'delivered_no_closed_at': 'Статус «сдан», но нет closed_at (сдача не подтверждена документом)',
+    'vanished_from_portal': 'Объект ИСЧЕЗ с портала (был в прошлом парсе, нет в новом)',
 }
 
 # Ташкент и окрестности (запас на область)
