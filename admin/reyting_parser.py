@@ -205,6 +205,38 @@ def bulk_fetch(conn, role=None, delay=0.5, limit=None):
     return {'ok': ok, 'errors': errors, 'not_found': not_found, 'total': len(rows)}
 
 
+def _probe_cli(inn):
+    """python3 reyting_parser.py probe <ИНН> — ищет живой JSON-эндпоинт.
+
+    Сайт переехал на SPA: старый /get-modal отдаёт оболочку React.
+    Перебираем кандидатов; ✓ = пришёл JSON.
+    """
+    candidates = [
+        'https://reyting.mc.uz/api/get-modal?inn={inn}',
+        'https://api.reyting.mc.uz/get-modal?inn={inn}',
+        'https://reyting.mc.uz/api/check?stir={inn}',
+        'https://reyting.mc.uz/api/organization?stir={inn}',
+        'https://reyting.mc.uz/api/organizations/{inn}',
+        'https://reyting.mc.uz/backend/get-modal?inn={inn}',
+        'https://api.mc.uz/reyting/get-modal?inn={inn}',
+    ]
+    s = _get_session()
+    for tpl in candidates:
+        url = tpl.format(inn=inn)
+        try:
+            r = s.get(url, timeout=12)
+            body = r.text.lstrip()
+            is_json = body[:1] in ('{', '[')
+            mark = '✓' if (r.status_code == 200 and is_json) else '✗'
+            print(f'{mark} [{r.status_code}] {url}')
+            if is_json:
+                print('   ', ' '.join(body[:300].split()))
+        except Exception as e:
+            print(f'✗ [ERR] {url} — {e}')
+    print('\nЕсли всё ✗: DevTools (F12) → Network → Fetch/XHR → ввести ИНН,')
+    print('нажать Tekshirish → пришлите URL запроса, который вернул данные.')
+
+
 def _bulk_cli():
     """python3 reyting_parser.py bulk [developer|contractor] [limit]
 
@@ -252,6 +284,9 @@ def _bulk_cli():
 
 if __name__ == '__main__':
     import sys
+    if len(sys.argv) > 2 and sys.argv[1] == 'probe':
+        _probe_cli(sys.argv[2])
+        sys.exit(0)
     if len(sys.argv) > 1 and sys.argv[1] == 'bulk':
         _bulk_cli()
     else:
