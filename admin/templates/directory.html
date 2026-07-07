@@ -98,7 +98,8 @@
       <th style="text-align:center;width:90px">% просрочки</th>
       <th style="text-align:center;width:70px">% плохих</th>
       <th style="text-align:center;width:60px">Алиасов</th>
-      <th style="width:160px">Рейтинг</th>
+      <th style="text-align:center;width:76px" title="рейтинг с reyting.mc.uz (AAA..DDD) и балл">Портал</th>
+      <th style="width:160px">Рейтинг (мой)</th>
       <th style="width:60px;text-align:center">✓</th>
     </tr>
   </thead>
@@ -147,6 +148,14 @@
     <td style="text-align:center;
                color:{% if r.alias_count>1 %}var(--warn){% else %}var(--text-dim){% endif %}">
       {{ r.alias_count }}
+    </td>
+
+    <td style="text-align:center">
+      {% if r.portal_rating %}
+        <span class="badge {% if 'D' in r.portal_rating %}stopped{% elif 'C' in r.portal_rating %}unclear{% else %}delivered{% endif %}"
+              style="font-size:10px" title="балл: {{ '%.1f'|format(r.portal_score) if r.portal_score is not none else '—' }}">
+          {{ r.portal_rating }}</span>
+      {% else %}<span style="color:var(--text-dim)">—</span>{% endif %}
     </td>
 
     {# Инлайн-рейтинг #}
@@ -205,7 +214,7 @@
   </tr>
   {% else %}
   <tr>
-    <td colspan="9" style="text-align:center;color:var(--text-dim);padding:32px">
+    <td colspan="10" style="text-align:center;color:var(--text-dim);padding:32px">
       Ничего не найдено
     </td>
   </tr>

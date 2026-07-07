@@ -82,16 +82,28 @@ def fetch_reyting(inn, timeout=10):
     cats = data.get('data', {})
     categories = {}
     name = None
+    score = None
     for cat_key, cat_data in cats.items():
+        if not isinstance(cat_data, dict):
+            continue
         if cat_data.get('hasData'):
             categories[cat_key] = cat_data.get('reyting')
             if not name:
                 name = cat_data.get('name')
+            # числовой балл (34.54 и т.п.) — поле может называться по-разному
+            for k in ('ball', 'score', 'bal'):
+                if score is None and cat_data.get(k) is not None:
+                    try:
+                        score = float(cat_data[k])
+                    except (TypeError, ValueError):
+                        pass
         else:
             categories[cat_key] = None
 
     # лучший рейтинг по приоритету (A > B > C > D)
-    grade_order = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
+    # реальная шкала портала: AAA лучший … DDD худший (видно по живым ответам)
+    grade_order = {'AAA': 0, 'AA': 1, 'A': 2, 'BBB': 3, 'BB': 4, 'B': 5,
+                   'CCC': 6, 'CC': 7, 'C': 8, 'DDD': 11, 'DD': 10, 'D': 9}
     best_rating, best_cat = None, None
     for cat_key in list(cats.keys()):
         g = categories.get(cat_key)
@@ -105,6 +117,7 @@ def fetch_reyting(inn, timeout=10):
         'categories': categories,
         'rating': best_rating,
         'rating_category': best_cat,
+        'score': score,
         'raw': data,
     }
 
@@ -119,9 +132,12 @@ def fetch_and_save(conn, role, org_key, inn, snapshot_date=None):
     name_from_portal = result.get('name')
 
     if rating:
+        # портальный грейд (AAA..DDD) и балл — в отдельные поля;
+        # ручной rating (ваша оценка A-D) НЕ трогается
         conn.execute(
-            'UPDATE org_directory SET rating=? WHERE role=? AND org_key=?',
-            (rating, role, org_key)
+            "UPDATE org_directory SET portal_rating=?, portal_score=?, "
+            "portal_rating_checked=date('now') WHERE role=? AND org_key=?",
+            (rating, result.get('score'), role, org_key)
         )
     if name_from_portal:
         # обновляем каноническое название только если оно ещё не правили вручную
@@ -185,6 +201,8 @@ def _bulk_cli():
     limit = int(sys.argv[3]) if len(sys.argv) > 3 else None
     db_path = os.path.join(os.path.dirname(__file__), 'cam_admin.db')
     conn = sqlite3.connect(db_path)
+    from org_directory import ensure_schema
+    ensure_schema(conn)  # добавит portal_rating/portal_score, если БД старее кода
 
     where = "key_type='inn'"
     params = []
