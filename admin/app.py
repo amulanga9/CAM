@@ -265,14 +265,22 @@ def dashboard():
 @app.route('/review')
 def review_queue():
     db = get_db()
-    rows = db.execute('''
-        SELECT c.*, d.delay_type AS delay_type FROM complexes c
+    sort = request.args.get('sort', 'overdue')
+    order_by = {
+        'size': 'size_apts DESC, c.days_overdue DESC, c.cam_id',
+        'overdue': 'c.days_overdue DESC, c.cam_id',
+    }.get(sort, 'c.days_overdue DESC, c.cam_id')
+    rows = db.execute(f'''
+        SELECT c.*, d.delay_type AS delay_type,
+               json_extract(c.raw_json, '$.apartments_count') AS size_apts
+        FROM complexes c
         LEFT JOIN manual.delay_flags d ON d.cam_id = c.cam_id
         WHERE c.needs_review = 1
           AND c.cam_id NOT IN (SELECT cam_id FROM manual.reviews)
-        ORDER BY c.days_overdue DESC, c.cam_id
+        ORDER BY {order_by}
     ''').fetchall()
-    return render_template('review_queue.html', rows=rows, verdicts=VERDICTS, delay_types=DELAY_TYPES)
+    return render_template('review_queue.html', rows=rows, verdicts=VERDICTS,
+                           delay_types=DELAY_TYPES, sort=sort)
 
 
 @app.route('/review/<cam_id>', methods=['POST'])

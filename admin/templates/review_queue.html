@@ -2,9 +2,15 @@
 {% block content %}
 <h2>Очередь проверки ({{ rows|length }})</h2>
 <p style="color:#888">Объекты с неясным/просроченным статусом. Подтверди факт по каждому: сдан, строится, заморожен, отменён.</p>
+<p>
+  Сортировка:
+  <a href="{{ url_for('review_queue', sort='overdue') }}" {% if sort != 'size' %}style="font-weight:700"{% endif %}>по просрочке</a>
+  ·
+  <a href="{{ url_for('review_queue', sort='size') }}" {% if sort == 'size' %}style="font-weight:700"{% endif %}>сначала крупные стройки</a>
+</p>
 <table>
 <tr>
-  <th>CAM ID</th><th>Название / адрес</th><th>Район</th>
+  <th>CAM ID</th><th>Название / адрес</th><th>Район</th><th>Квартир</th>
   <th>Дедлайн</th><th>Дней просрочки</th><th>Статус (исходный)</th><th>Решение</th>
 </tr>
 {% for r in rows %}
@@ -14,6 +20,7 @@
     {% if r.delay_type %}<br><span class="badge {{ 'frozen' if r.delay_type == 'confirmed' else 'unclear' }}">{{ delay_types.get(r.delay_type, r.delay_type) }}</span>{% endif %}
   </td>
   <td>{{ r.district_name or '—' }}</td>
+  <td>{{ r.size_apts or '—' }}</td>
   <td>{{ r.deadline or '—' }}</td>
   <td>{{ r.days_overdue or '—' }}</td>
   <td><small>{{ r.case_status_raw or '—' }}</small></td>
