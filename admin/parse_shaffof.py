@@ -86,9 +86,36 @@ def parse_blocks(blocks):
             accepted, len(blocks))
 
 
+def _max_floor(data):
+    floors = []
+    for b in (data.get('blocks') or []):
+        f = b.get('floor')
+        if f:
+            try:
+                floors.append(int(f))
+            except (TypeError, ValueError):
+                pass
+    return max(floors) if floors else None
+
+
 def is_residential(data):
     if data.get('sphere_id') == 57:
         return True
+
+    # sphere_id 58/59 в классификации портала — индивидуальный дом/коттедж/
+    # таунхаус, не ЖК. Их названия почти всегда содержат "турар-жой"/"жилой"
+    # и прошли бы через keyword-фильтр ниже как обычная многоквартирка.
+    # Найдено анализом raw-выгрузки (737 строк): все объекты с sphere_id 58/59
+    # имели apartment_count=0; исключаем только явно малоэтажные (<=4 этажей
+    # или этаж не указан) — 2 объекта из 19 были 16-этажными с 3-4 блоками,
+    # что не похоже на частный дом (вероятно, неверно указан sphere_id при
+    # подаче заявки) — их не исключаем, они попадут в обычную проверку
+    # инспектора "0 квартир на портале" для ручной проверки.
+    if data.get('sphere_id') in (58, 59) and int(data.get('apartment_count') or 0) == 0:
+        floor = _max_floor(data)
+        if floor is None or floor <= 4:
+            return False
+
     if int(data.get('apartment_count') or 0) > 0:
         return True
     name = (data.get('name') or '').lower()
