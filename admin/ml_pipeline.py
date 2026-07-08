@@ -29,6 +29,7 @@ import pandas as pd
 BASE = Path(__file__).resolve().parent
 MODELS_DIR = BASE / 'models'
 MODEL_PATH = MODELS_DIR / 'cam_model_v8.pkl'
+TEST_IDS_PATH = MODELS_DIR / 'test_ids_v8.json'
 
 # карты из v7
 RATING_MAP = {'AAA': 9, 'AA': 8, 'A': 7, 'BBB': 6, 'BB': 5, 'B': 4,
@@ -37,8 +38,11 @@ DIFF_MAP = {'I': 1, 'II': 2, 'III': 3, 'IV': 4}
 
 # возраст компаний исключён: на текущей выборке стабильно ухудшает AUC
 # (тест абляции: -0.03), вернуть при росте выборки/покрытия
+# blocks_total исключён: абляция на valid (GroupKFold-DEV) показала AUC
+# 0.666->0.696 и std 0.065->0.021 без него — шумная/переобучающая фича
+# при таком n, а не сигнал (проверено 2026-07, вернуть при росте выборки)
 FEATURES = [
-    'difficulty', 'apartments_count', 'floors_max', 'blocks_total',
+    'difficulty', 'apartments_count', 'floors_max',
     'developer_rating', 'dev_built', 'dev_bad',
     'contractor_rating', 'pod_built', 'pod_bad',
 ]
@@ -203,43 +207,123 @@ def group_cv_auc(model_factory_name, models, df_train, n_splits=5):
     return float(np.mean(aucs)), float(np.std(aucs)), len(aucs)
 
 
+def get_or_create_test_ids(df_train, test_size=0.2, random_state=42):
+    """Запертый финальный test (~20% объектов, по ИНН застройщика).
+
+    Список cam_id сохраняется в файл один раз — при повторных train()
+    используется тот же test, иначе он перестаёт быть «запертым»
+    (пересчёт с новым random_state = скрытый перебор test под удобный результат).
+    """
+    import json as _json
+    if TEST_IDS_PATH.exists():
+        ids = set(_json.loads(TEST_IDS_PATH.read_text()))
+        present = set(df_train['cam_id'])
+        return ids & present  # на случай слияний/удалений карточек
+
+    from sklearn.model_selection import GroupShuffleSplit
+    groups = df_train['dev_inn'].fillna('NO_INN_' + df_train['cam_id'])
+    gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=random_state)
+    _, test_idx = next(gss.split(df_train, df_train['target'], groups))
+    ids = set(df_train.iloc[test_idx]['cam_id'])
+    MODELS_DIR.mkdir(exist_ok=True)
+    TEST_IDS_PATH.write_text(_json.dumps(sorted(ids), ensure_ascii=False, indent=2))
+    return ids
+
+
+def evaluate_on_test(model, df_dev, df_test, features):
+    """Единственный законный прогон на test. Отдельно считает false negatives —
+    случаи «модель сказала хорошо, а на деле плохо» (самые опасные для покупателя)."""
+    from sklearn.metrics import roc_auc_score, average_precision_score
+
+    test_f = add_org_aggregates(df_test, df_dev)  # агрегаты только из dev-пула
+    prob = model.predict_proba(test_f[features])[:, 1]
+    y = df_test['target'].astype(int).values
+
+    out = {'n_test': len(df_test), 'n_bad_test': int(y.sum())}
+    if len(set(y)) > 1:
+        out['test_auc'] = float(roc_auc_score(y, prob))
+        out['test_pr_auc'] = float(average_precision_score(y, prob))
+    else:
+        out['test_auc'] = None
+        out['test_pr_auc'] = None
+
+    # ложноотрицательные по порогам риск-зон (score 0-100, порог 40/70)
+    out['thresholds'] = {}
+    for thr in (40, 70):
+        pred_bad = (prob * 100) >= thr
+        fn_mask = (y == 1) & (~pred_bad)          # плохой, но модель сказала «хорошо»
+        fp_mask = (y == 0) & pred_bad
+        tp = int(((y == 1) & pred_bad).sum())
+        fn = int(fn_mask.sum())
+        tn = int(((y == 0) & (~pred_bad)).sum())
+        fp = int(fp_mask.sum())
+        recall_bad = tp / (tp + fn) if (tp + fn) else None
+        out['thresholds'][thr] = {
+            'tp': tp, 'fn': fn, 'tn': tn, 'fp': fp,
+            'recall_bad (меньше => больше пропущенных плохих)': recall_bad,
+            'missed_bad_cam_ids': df_test.loc[fn_mask, 'cam_id'].tolist(),
+        }
+    return out
+
+
 def train():
     import joblib
     conn = connect()
     df = build_dataset(conn)
-    df_train = df[df['target'].notna()].copy()
-    print(f'Выборка: {len(df_train)} объектов с известным исходом '
-          f'(target=1: {int(df_train.target.sum())}, '
-          f'{df_train.target.mean():.0%})')
-    print(f'Групп-застройщиков: {df_train.dev_inn.nunique()}')
+    df_train_all = df[df['target'].notna()].copy()
+    print(f'Выборка: {len(df_train_all)} объектов с известным исходом '
+          f'(target=1: {int(df_train_all.target.sum())}, '
+          f'{df_train_all.target.mean():.0%})')
+    print(f'Групп-застройщиков: {df_train_all.dev_inn.nunique()}')
+
+    # ── запертый финальный TEST (~20%, по ИНН) — трогаем один раз в самом конце
+    test_ids = get_or_create_test_ids(df_train_all)
+    df_test = df_train_all[df_train_all['cam_id'].isin(test_ids)].copy()
+    df_dev = df_train_all[~df_train_all['cam_id'].isin(test_ids)].copy()
+    print(f'TEST заперт: {len(df_test)} объектов ({TEST_IDS_PATH.name}), '
+          f'DEV (train+valid): {len(df_dev)} объектов')
 
     models = make_models()
     results = {}
-    print(f'\nВыбор модели — GroupKFold(5) по ИНН застройщика, ROC-AUC:')
+    print(f'\nВыбор модели на DEV — GroupKFold(5) по ИНН застройщика, ROC-AUC (valid):')
     for name in models:
-        mean, std, n = group_cv_auc(name, models, df_train)
+        mean, std, n = group_cv_auc(name, models, df_dev)
         results[name] = (mean, std)
         print(f'  {name:14} AUC {mean:.4f} ± {std:.4f} ({n} фолдов)')
 
     best = max(results, key=lambda k: results[k][0])
-    print(f'\nЛучшая: {best}')
+    print(f'\nЛучшая по valid: {best}')
 
-    # финальное обучение на всей выборке (агрегаты по всей train-выборке)
-    df_full = add_org_aggregates(df_train, df_train, loo=True)
+    # финальное обучение на DEV (test не участвует нигде до этой точки)
+    dev_full = add_org_aggregates(df_dev, df_dev, loo=True)
     from sklearn.calibration import CalibratedClassifierCV
     final = CalibratedClassifierCV(make_models()[best], method='isotonic', cv=3)
-    final.fit(df_full[FEATURES], df_train['target'].astype(int))
+    final.fit(dev_full[FEATURES], df_dev['target'].astype(int))
+
+    # ── единственный прогон на test ──
+    test_report = evaluate_on_test(final, df_dev, df_test, FEATURES)
+    print(f"\nTEST (единственный прогон, {test_report['n_test']} объектов, "
+          f"{test_report['n_bad_test']} плохих):")
+    print(f"  AUC {test_report['test_auc']} | PR-AUC {test_report['test_pr_auc']}")
+    for thr, m in test_report['thresholds'].items():
+        print(f"  порог {thr}: TP={m['tp']} FN={m['fn']} TN={m['tn']} FP={m['fp']} "
+              f"recall_bad={m['recall_bad (меньше => больше пропущенных плохих)']}")
+        if m['missed_bad_cam_ids']:
+            print(f"    пропущенные плохие (FN): {m['missed_bad_cam_ids']}")
 
     MODELS_DIR.mkdir(exist_ok=True)
     joblib.dump({
         'model': final, 'model_name': best, 'features': FEATURES,
         'rating_map': RATING_MAP, 'diff_map': DIFF_MAP,
         'cv_auc': results[best][0], 'cv_std': results[best][1],
-        'cv_scheme': 'GroupKFold(5) by developer_inn, fold-safe aggregates',
+        'cv_scheme': 'GroupKFold(5) by developer_inn on DEV (test held out)',
+        'test_report': test_report,
         'trained_at': date.today().isoformat(),
-        'n_train': len(df_train),
+        'n_train': len(df_dev),
+        'n_test': len(df_test),
     }, MODEL_PATH)
-    print(f'Сохранена: {MODEL_PATH} (AUC {results[best][0]:.4f})')
+    print(f'\nСохранена: {MODEL_PATH} (valid AUC {results[best][0]:.4f}, '
+          f"test AUC {test_report['test_auc']})")
 
 
 def score():
