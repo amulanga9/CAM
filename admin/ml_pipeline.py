@@ -348,8 +348,12 @@ def score():
     active_f = add_org_aggregates(active, df_train)
     prob = bundle['model'].predict_proba(active_f[bundle['features']])[:, 1]
     active['cam_score'] = (prob * 100).round(1)
+    # Главная граница тревоги — 40, не 70: на test-выборке порог 40 ловит
+    # 88% реально плохих объектов (recall), порог 70 — только 44%. Значит
+    # "низкий риск" должен значить именно <40, а не <70 — иначе половина
+    # плохих ЖК молча попадает в "не тревога" (см. ml_pipeline.py train()).
     active['risk_zone'] = pd.cut(active['cam_score'], [-1, 40, 70, 101],
-                                 labels=['low', 'medium', 'high'])
+                                 labels=['low', 'risk', 'high_risk'])
 
     cols = {r[1] for r in conn.execute('PRAGMA table_info(complexes)')}
     for col, decl in (('cam_score', 'REAL'), ('risk_zone', 'TEXT'),
@@ -365,8 +369,10 @@ def score():
 
     print('\nРаспределение CAM Score:')
     print(active['cam_score'].describe().round(1).to_string())
-    print('\nРиск-зоны:')
+    print('\nРиск-зоны (low <40, risk 40-70, high_risk >=70):')
     print(active['risk_zone'].value_counts().to_string())
+    flagged = int((active['cam_score'] >= 40).sum())
+    print(f'\nГлавный сигнал тревоги — score >= 40: {flagged} из {len(active)} объектов')
     print('\nТоп-10 риска:')
     top = active.nlargest(10, 'cam_score')[['cam_id', 'project_name', 'cam_score']]
     print(top.to_string(index=False))
