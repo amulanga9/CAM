@@ -229,10 +229,6 @@ def dashboard():
         "  GROUP BY developer_inn HAVING COUNT(*)>1"
         ")"
     ).fetchone()[0]
-    affil_groups_count = db.execute(
-        'SELECT COUNT(*) FROM (SELECT DISTINCT group_name FROM affiliation_groups)'
-        if False else 'SELECT 0'  # заглушка если таблицы нет
-    ).fetchone()[0]
     try:
         affil_groups_count = len(get_affiliation_groups(db))
     except Exception:
@@ -243,8 +239,11 @@ def dashboard():
         'SELECT COUNT(*) FROM org_directory WHERE needs_review=0'
     ).fetchone()[0]
     dir_total = db.execute('SELECT COUNT(*) FROM org_directory').fetchone()[0]
+    # ручного rating больше нет (см. org_directory.py) — считаем только
+    # официальный portal_rating; старое условие "rating != ''" всегда было
+    # ложным (rating больше никогда не заполняется) и держало эту цифру на 0
     dir_rated = db.execute(
-        'SELECT COUNT(*) FROM org_directory WHERE portal_rating IS NOT NULL AND rating != ""'
+        'SELECT COUNT(*) FROM org_directory WHERE portal_rating IS NOT NULL'
     ).fetchone()[0]
 
     return render_template(

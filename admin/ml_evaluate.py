@@ -17,10 +17,10 @@ import numpy as np
 import pandas as pd
 
 from ml_pipeline import (FEATURES, add_org_aggregates, build_dataset,
-                         connect, make_models)
+                         connect, get_or_create_test_ids, make_models)
 
 FEATURE_GROUPS = {
-    'объект (сложность/размер)': ['difficulty', 'apartments_count', 'floors_max', 'blocks_total'],
+    'объект (сложность/размер)': ['difficulty', 'apartments_count', 'floors_max'],
     'рейтинги':                  ['developer_rating', 'contractor_rating'],
     'возраст компаний':          ['dev_age_years', 'pod_age_years'],
     'история портфеля':          ['dev_built', 'dev_bad', 'pod_built', 'pod_bad'],
@@ -93,10 +93,16 @@ def main():
 
     conn = connect()
     df = build_dataset(conn)
-    df_train = df[df['target'].notna()].copy()
+    df_train_all = df[df['target'].notna()].copy()
+    # Всё ниже — это valid (GroupKFold), не финальная цифра: тест заперт
+    # в models/test_ids_v8.json и меряется один раз в ml_pipeline.py train().
+    # Если гонять этот скрипт на всех 259 объектах, тест тихо утекает в
+    # каждую метрику здесь — тогда "финальных" чисел стало бы два разных.
+    test_ids = get_or_create_test_ids(df_train_all)
+    df_train = df_train_all[~df_train_all['cam_id'].isin(test_ids)].copy()
     y_rate = df_train['target'].mean()
-    print(f'Выборка: {len(df_train)} | доля плохих исходов: {y_rate:.0%} '
-          f'| групп-застройщиков: {df_train.dev_inn.nunique()}')
+    print(f'DEV-выборка (valid, test заперт отдельно): {len(df_train)} из {len(df_train_all)} '
+          f'| доля плохих исходов: {y_rate:.0%} | групп-застройщиков: {df_train.dev_inn.nunique()}')
 
     # ── 1-2. модели vs бейзлайны ─────────────────────────────────────────
     print('\n══ 1. Модели против бейзлайнов (out-of-fold, GroupKFold по ИНН) ══')
