@@ -132,6 +132,8 @@ def get_db():
     ensure_dir_schema(g.db)
     ensure_dir_seeded(g.db)
     ensure_tags(g.db)
+    from apply_parse import ensure_permits_schema
+    ensure_permits_schema(g.db)
     return g.db
 
 

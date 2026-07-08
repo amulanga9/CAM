@@ -162,6 +162,10 @@ def merge_pair(conn, cam_a, cam_b, dst=None, reason='merge_duplicate'):
     conn.execute(f'UPDATE complexes SET {", ".join(sets)} WHERE cam_id=?', params)
 
     conn.execute('UPDATE phases SET cam_id=? WHERE cam_id=?', (dst, src))
+    try:
+        conn.execute('UPDATE permits SET cam_id=? WHERE cam_id=?', (dst, src))
+    except Exception:
+        pass  # старая БД без таблицы permits
     conn.execute('INSERT OR IGNORE INTO complex_tags SELECT ?, tag FROM complex_tags WHERE cam_id=?', (dst, src))
     conn.execute('DELETE FROM complex_tags WHERE cam_id=?', (src,))
 
