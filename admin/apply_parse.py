@@ -225,9 +225,15 @@ def apply(month=None, dry=False, create_new=True):
         # дедлайн: если исправлен вручную — метрики считаем от ручного
         if 'deadline' in prot:
             deadline = cur['deadline']
-        is_overdue, days_overdue, days_remaining = compute_deadline_metrics(deadline)
-        sets = ['is_overdue=?', 'days_overdue=?', 'days_remaining=?']
-        params = [int(is_overdue), days_overdue, days_remaining]
+        sets, params = [], []
+        # для уже сданных (в т.ч. подтверждённых вручную через /review) не
+        # пересчитываем is_overdue/days_overdue от "сегодня" — иначе просрочка
+        # растёт бесконечно каждую неделю даже после реальной сдачи объекта.
+        # Метрики остаются такими, какими были на момент подтверждения сдачи.
+        if cur['case_status_clean'] != 'delivered':
+            is_overdue, days_overdue, days_remaining = compute_deadline_metrics(deadline)
+            sets += ['is_overdue=?', 'days_overdue=?', 'days_remaining=?']
+            params += [int(is_overdue), days_overdue, days_remaining]
         if deadline and 'deadline' not in prot:
             new_dl = str(deadline)[:10]
             old_dl = (cur['deadline'] or '')[:10]
@@ -303,7 +309,7 @@ def apply(month=None, dry=False, create_new=True):
             sets.append('raw_json=?')
             params.append(json.dumps(raw, ensure_ascii=False))
 
-        if not dry:
+        if not dry and sets:
             params.append(cam_id)
             admin_conn.execute(
                 f'UPDATE complexes SET {", ".join(sets)} WHERE cam_id=?', params)

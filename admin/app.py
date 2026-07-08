@@ -11,7 +11,7 @@ import csv
 import json
 import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from flask import Flask, g, redirect, render_template, request, session, url_for
@@ -395,6 +395,26 @@ def edit_complex(cam_id):
     if sets:
         assignment = ', '.join(f'{f}=?' for f, _ in sets)
         db.execute(f'UPDATE complexes SET {assignment} WHERE cam_id=?', [v for _, v in sets] + [cam_id])
+
+    # ввели год сдачи (delivered_year) — фиксируем просрочку на момент сдачи,
+    # а не оставляем расти дальше "от сегодня". Точная дата неизвестна —
+    # берём 1 июля как оценку середины года (не влияет на итог 0/1 в обучении,
+    # если просрочка большая, но делает цифру на карточке осмысленной, а не
+    # растущей бесконечно после реальной сдачи).
+    if values.get('delivered_year'):
+        row = db.execute('SELECT deadline FROM complexes WHERE cam_id=?', (cam_id,)).fetchone()
+        deadline_str = row['deadline'] if row else None
+        try:
+            year = int(values['delivered_year'])
+            deadline_date = date.fromisoformat(str(deadline_str)[:10]) if deadline_str else None
+        except (TypeError, ValueError):
+            deadline_date = None
+        if deadline_date:
+            delivered_est = date(year, 7, 1)
+            delta = (delivered_est - deadline_date).days
+            db.execute(
+                'UPDATE complexes SET is_overdue=?, days_overdue=? WHERE cam_id=?',
+                (int(delta > 0), delta if delta > 0 else None, cam_id))
 
     db.commit()
     return redirect(url_for('complex_detail', cam_id=cam_id))
