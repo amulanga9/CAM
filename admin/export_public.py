@@ -120,6 +120,16 @@ def build_complex_record(row, cols, overrides, reviews, delay_flags, org_ratings
     # delay flags
     d['delay_flags'] = delay_flags.get(cam_id, [])
 
+    # реальные факты с портала, которые лежат внутри raw_json
+    try:
+        raw = json.loads(d.get('raw_json') or '{}')
+    except (TypeError, ValueError):
+        raw = {}
+    d['blocks_total'] = raw.get('blocks_total')
+    d['blocks_accepted'] = raw.get('blocks_accepted_for_card')
+    d['apartments_count'] = raw.get('apartments_count')
+    d['floors_max'] = raw.get('floors_max')
+
     # clean up raw_json (large, internal)
     d.pop('raw_json', None)
 
@@ -185,6 +195,10 @@ def export(admin_db=ADMIN_DB, manual_db=MANUAL_DB, data_dir=DATA_DIR):
             'listing_url':   rec.get('listing_url'),
             'brand_name':    rec.get('brand_name'),
             'needs_review':  rec.get('needs_review'),
+            'blocks_total':      rec.get('blocks_total'),
+            'blocks_accepted':   rec.get('blocks_accepted'),
+            'apartments_count':  rec.get('apartments_count'),
+            'floors_max':        rec.get('floors_max'),
         })
 
     with open(os.path.join(data_dir, 'complexes.json'), 'w', encoding='utf-8') as f:
