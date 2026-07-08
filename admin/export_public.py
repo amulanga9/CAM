@@ -162,7 +162,11 @@ def export(admin_db=ADMIN_DB, manual_db=MANUAL_DB, data_dir=DATA_DIR):
         pass
 
     cols = [r[1] for r in admin_conn.execute('PRAGMA table_info(complexes)')]
-    rows = admin_conn.execute('SELECT * FROM complexes ORDER BY cam_id').fetchall()
+    # excluded — помеченные «не ЖК» (кнопка в админке или clean_non_residential.py):
+    # на публичный сайт не выгружаем
+    rows = admin_conn.execute(
+        "SELECT * FROM complexes WHERE case_status_clean != 'excluded' "
+        "OR case_status_clean IS NULL ORDER BY cam_id").fetchall()
 
     index = []
     for row in rows:
