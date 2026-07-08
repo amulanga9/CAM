@@ -35,7 +35,20 @@ CHECK_LABELS = {
     'self_contractor': 'Застройщик = подрядчик (сам себе строит)',
     'delivered_no_closed_at': 'Статус «сдан», но нет closed_at (сдача не подтверждена документом)',
     'vanished_from_portal': 'Объект ИСЧЕЗ с портала (был в прошлом парсе, нет в новом)',
+    'design_stage_name': 'Название похоже на заявку на проектирование/реконструкцию, а не на стройку',
 }
+
+# слова в названии, указывающие на заявку по проектированию/реконструкции —
+# такие объекты часто содержат и жилые ключевые слова ("турар-жой"/"жилой"),
+# поэтому проходят через is_residential() в parse_shaffof.py, но по сути не
+# новое строительство. Не исключаем автоматически (реконструкция бывает и
+# настоящей), только флагаем на ручную проверку.
+DESIGN_STAGE_KEYWORDS = (
+    'лойиҳалаштириш', 'loyihalashtirish',  # проектирование
+    'қайта қуриш', 'qayta qurish',          # реконструкция (перестройка)
+    'реконструкц',                          # реконструкция (рус.)
+    'ихтисослаштириб', 'ixtisoslashtirib',  # перепрофилирование
+)
 
 # Ташкент и окрестности (запас на область)
 TASHKENT_BBOX = (40.9, 68.6, 41.6, 69.9)  # lat_min, lng_min, lat_max, lng_max
@@ -122,6 +135,14 @@ def run_checks(conn):
         # нет координат
         if r['lat'] is None or r['lng'] is None:
             findings.append(('no_coords', 'low', 'complex', cid, f'{cid}: нет координат', ''))
+
+        # название похоже на заявку по проектированию/реконструкции
+        name_lower = (r['project_name'] or '').lower()
+        if any(kw in name_lower for kw in DESIGN_STAGE_KEYWORDS):
+            findings.append(('design_stage_name', 'medium', 'complex', cid,
+                             f"{cid}: название содержит признаки заявки на "
+                             f"проектирование/реконструкцию, а не стройки — "
+                             f"«{(r['project_name'] or '')[:120]}»", ''))
         else:
             la, lo = _num(r['lat']), _num(r['lng'])
             lat_min, lng_min, lat_max, lng_max = TASHKENT_BBOX
