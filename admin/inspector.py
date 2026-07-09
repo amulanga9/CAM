@@ -36,6 +36,8 @@ CHECK_LABELS = {
     'delivered_no_closed_at': 'Статус «сдан», но нет closed_at (сдача не подтверждена документом)',
     'vanished_from_portal': 'Объект ИСЧЕЗ с портала (был в прошлом парсе, нет в новом)',
     'design_stage_name': 'Название похоже на заявку на проектирование/реконструкцию, а не на стройку',
+    'ambiguous_no_apt_profile': '0 квартир + малоэтажно/1 блок + нет жилого самоназвания — не ЖК или пробел в данных?',
+    'blocks_undercounted': 'Квартир на блок нереалистично много — вероятно blocks_total занижен на портале',
 }
 
 # слова в названии, указывающие на заявку по проектированию/реконструкции —
@@ -48,6 +50,15 @@ DESIGN_STAGE_KEYWORDS = (
     'қайта қуриш', 'qayta qurish',          # реконструкция (перестройка)
     'реконструкц',                          # реконструкция (рус.)
     'ихтисослаштириб', 'ixtisoslashtirib',  # перепрофилирование
+    'генплан', 'генеральн',                 # корректура генплана — тоже проектная стадия
+)
+
+# если объект называет себя жильём — числовой профиль "частный дом" не
+# применяем, что бы ни говорили цифры (ЖК «Malika»/«Savr Avenue» проверкой
+# показали: apartments_count/blocks_total у настоящих ЖК тоже бывают битыми)
+RESIDENTIAL_SELF_NAME = (
+    'жк', 'жилой комплекс', 'жилой дом', 'турар-жой', 'turar-joy', 'uy-joy',
+    'residence', 'жилищн',
 )
 
 # Ташкент и окрестности (запас на область)
@@ -138,12 +149,44 @@ def run_checks(conn):
 
         # название похоже на заявку по проектированию/реконструкции
         name_lower = (r['project_name'] or '').lower()
-        if any(kw in name_lower for kw in DESIGN_STAGE_KEYWORDS):
+        is_design_stage = any(kw in name_lower for kw in DESIGN_STAGE_KEYWORDS)
+        if is_design_stage:
             findings.append(('design_stage_name', 'medium', 'complex', cid,
                              f"{cid}: название содержит признаки заявки на "
                              f"проектирование/реконструкцию, а не стройки — "
                              f"«{(r['project_name'] or '')[:120]}»", ''))
-        else:
+
+        # кросс-проверка по числовым полям (не только по имени): похоже на
+        # частный дом (0 квартир + малоэтажно + <=1 блок), но название не
+        # называет себя жильём и не является проектной заявкой — тогда либо
+        # это правда не ЖК, либо просто пробел в данных портала. Числовой
+        # профиль сам по себе ненадёжен (проверкой найдены реальные ЖК
+        # «Malika»/«Savr Avenue» с битым blocks_total) — только на ручную
+        # проверку, не auto-exclude.
+        try:
+            raw = json.loads(r['raw_json']) if r['raw_json'] else {}
+        except (TypeError, ValueError):
+            raw = {}
+        apt = _num(raw.get('apartments_count')) or 0
+        floors = _num(raw.get('floors_max'))
+        blocks_total = _num(raw.get('blocks_total'))
+        is_residential_name = any(kw in name_lower for kw in RESIDENTIAL_SELF_NAME)
+        if (apt == 0 and (floors is None or floors <= 4) and (blocks_total is None or blocks_total <= 1)
+                and not is_residential_name and not is_design_stage):
+            findings.append(('ambiguous_no_apt_profile', 'low', 'complex', cid,
+                             f"{cid}: 0 квартир, малоэтажно/1 блок, нет жилого "
+                             f"самоназвания — «{(r['project_name'] or '(без названия)')[:100]}»", ''))
+
+        # квартир на блок нереалистично много — вероятно blocks_total занижен
+        if apt > 0 and blocks_total and blocks_total > 0:
+            apt_per_block = apt / blocks_total
+            if apt_per_block > 400:
+                findings.append(('blocks_undercounted', 'low', 'complex', cid,
+                                 f"{cid}: {int(apt)} квартир на {int(blocks_total)} "
+                                 f"блок(ов) — {apt_per_block:.0f} кв./блок, вероятно "
+                                 f"blocks_total занижен на портале", ''))
+
+        if not is_design_stage:
             la, lo = _num(r['lat']), _num(r['lng'])
             lat_min, lng_min, lat_max, lng_max = TASHKENT_BBOX
             if la and lo and not (lat_min <= la <= lat_max and lng_min <= lo <= lng_max):
