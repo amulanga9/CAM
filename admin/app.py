@@ -68,7 +68,7 @@ VERDICTS = {
 }
 
 EDITABLE_FIELDS = [
-    'project_name', 'address', 'district_name', 'lat', 'lng',
+    'project_name', 'commercial_name', 'address', 'district_name', 'lat', 'lng',
     'developer_name', 'developer_inn', 'developer_rating',
     'contractor_name', 'contractor_inn', 'contractor_rating',
     'deadline', 'dom_class', 'price_per_m2_uzs', 'listing_url',

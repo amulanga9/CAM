@@ -93,7 +93,7 @@ def build_complex_record(row, cols, overrides, reviews, delay_flags, org_ratings
 
     # apply overrides
     ov = overrides.get(cam_id, {})
-    for field in ('project_name', 'address', 'district_name', 'lat', 'lng',
+    for field in ('project_name', 'commercial_name', 'address', 'district_name', 'lat', 'lng',
                   'developer_name', 'developer_inn', 'contractor_name', 'contractor_inn',
                   'deadline', 'dom_class', 'price_per_m2_uzs', 'listing_url',
                   'brand_name', 'delivered_year', 'holding_name', 'brand_status'):
@@ -183,6 +183,7 @@ def export(admin_db=ADMIN_DB, manual_db=MANUAL_DB, data_dir=DATA_DIR):
         index.append({
             'cam_id':        rec['cam_id'],
             'project_name':  rec.get('project_name'),
+            'commercial_name': rec.get('commercial_name'),
             'address':       rec.get('address'),
             'district_name': rec.get('district_name'),
             'lat':           rec.get('lat'),

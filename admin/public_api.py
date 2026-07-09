@@ -27,7 +27,7 @@ PG_DSN = os.environ.get('CAM_PG_DSN', 'postgresql://cam:cam_dev_pw@localhost/cam
 # те же поля, что в текущем export_public.py для лёгкого индекса — фронтенд
 # не должен заметить разницы между файлом и API
 INDEX_FIELDS = [
-    'cam_id', 'project_name', 'address', 'district_name', 'lat', 'lng',
+    'cam_id', 'project_name', 'commercial_name', 'address', 'district_name', 'lat', 'lng',
     'case_status_clean', 'developer_name', 'developer_inn', 'dev_dir_rating',
     'deadline', 'is_overdue', 'days_overdue', 'dom_class', 'price_per_m2_uzs',
     'listing_url', 'brand_name', 'needs_review', 'blocks_total',

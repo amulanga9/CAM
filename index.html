@@ -534,7 +534,10 @@ function mapComplexToCard(c) {
   return {
     cam_id: c.cam_id,
     matched: true,
-    name: c.project_name || c.cam_id,
+    name: c.commercial_name || c.project_name || c.cam_id,
+    // юр.название по Шаффоф — показываем отдельно, только если оно
+    // отличается от коммерческого (иначе дублирование в карточке)
+    official_name: (c.commercial_name && c.commercial_name !== c.project_name) ? c.project_name : null,
     dev_legal: c.developer_name,
     dev_comm: null,
     dev_inn: c.developer_inn,
@@ -629,6 +632,7 @@ function renderCards(items) {
       <div class="card-header">
         <div class="card-title-block">
           <div class="card-name" title="${d.name}">${d.name}</div>
+          ${d.official_name?`<div class="card-dev" style="font-size:10px" title="${d.official_name}">по Шаффоф: ${d.official_name}</div>`:''}
           <div class="card-dev">${d.dev_comm||d.dev_legal||'—'}</div>
         </div>
         <div class="risk-badge">
@@ -793,6 +797,7 @@ function openModal(id) {
   const bodyHTML = `
     <div class="mc-header">
       <div class="mc-name">${d.name}</div>
+      ${d.official_name?`<div style="font-size:11px;color:var(--text-faint);margin-top:-2px;margin-bottom:4px">по Шаффоф: ${d.official_name}</div>`:''}
       <div class="mc-dev">
         <span>${d.dev_legal||'—'}</span>
         <span style="color:var(--text-faint)"> · </span>
