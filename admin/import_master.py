@@ -132,7 +132,7 @@ def migrate_complexes(conn):
     cols = {r[1] for r in conn.execute('PRAGMA table_info(complexes)')}
     if not cols:
         return  # таблицы ещё нет — её создаст build_schema/ensure_complexes_table
-    for col in ('brand_name', 'delivered_year', 'holding_name', 'commercial_name'):
+    for col in ('brand_name', 'delivered_year', 'holding_name', 'commercial_name', 'brand_inn'):
         if col not in cols:
             conn.execute(f'ALTER TABLE complexes ADD COLUMN {col} TEXT')
     if 'brand_status' not in cols:
@@ -293,6 +293,7 @@ def build_manual_schema(conn):
         listing_url       TEXT,
         brand_name        TEXT,
         brand_status      TEXT,
+        brand_inn         TEXT,
         delivered_year    TEXT,
         holding_name      TEXT,
         commercial_name   TEXT,
@@ -395,7 +396,7 @@ def _migrate_manual_rebrands(conn):
 def _migrate_manual_overrides(conn):
     """Добавляет колонки в manual.overrides, если БД создана старой версией схемы."""
     cols = {r[1] for r in conn.execute("PRAGMA manual.table_info(overrides)")}
-    for col in ('brand_name', 'delivered_year', 'holding_name', 'brand_status', 'commercial_name'):
+    for col in ('brand_name', 'delivered_year', 'holding_name', 'brand_status', 'commercial_name', 'brand_inn'):
         if col not in cols:
             conn.execute(f'ALTER TABLE manual.overrides ADD COLUMN {col} TEXT')
 

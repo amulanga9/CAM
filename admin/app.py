@@ -72,7 +72,7 @@ EDITABLE_FIELDS = [
     'developer_name', 'developer_inn', 'developer_rating',
     'contractor_name', 'contractor_inn', 'contractor_rating',
     'deadline', 'dom_class', 'price_per_m2_uzs', 'listing_url',
-    'brand_name', 'delivered_year', 'holding_name',
+    'brand_name', 'brand_inn', 'delivered_year', 'holding_name',
 ]
 
 DELAY_TYPES = {
@@ -396,6 +396,13 @@ def edit_complex(cam_id):
         assignment = ', '.join(f'{f}=?' for f, _ in sets)
         db.execute(f'UPDATE complexes SET {assignment} WHERE cam_id=?', [v for _, v in sets] + [cam_id])
 
+    # бренд-обёртка (коммерческая компания, под которой продают ЖК) —
+    # отдельная сущность от застройщика/подрядчика, но тоже может
+    # ликвидироваться. Регистрируем в том же справочнике (role='brand'),
+    # чтобы работали общие кнопки "обновить с orginfo.uz"/массовый bulk-фетч.
+    if values.get('brand_inn'):
+        resolve_org(db, 'brand', values.get('brand_name'), values['brand_inn'])
+
     # ввели год сдачи (delivered_year) — фиксируем просрочку на момент сдачи,
     # а не оставляем расти дальше "от сегодня". Точная дата неизвестна —
     # берём 1 июля как оценку середины года (не влияет на итог 0/1 в обучении,
@@ -663,7 +670,8 @@ def render_complex_detail(cam_id, rebrand_form=None, rebrand_error=None, delay_p
     # живые данные из справочника по ИНН (рейтинг, каноническое имя, статус)
     dir_orgs = {}
     for role_key, inn in (('developer', row['developer_inn']),
-                          ('contractor', row['contractor_inn'])):
+                          ('contractor', row['contractor_inn']),
+                          ('brand', row['brand_inn'] if 'brand_inn' in row.keys() else None)):
         inn = str(inn or '').strip()
         if inn:
             d = db.execute(

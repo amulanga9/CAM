@@ -182,7 +182,19 @@
         </span>
       </summary>
       <div class="block-body edit-grid">
+        {% if dir_orgs.brand %}
+        {% set d = dir_orgs.brand %}
+        <div class="wide" style="border:1px solid var(--border-hi);border-radius:6px;padding:8px 12px;
+                                 background:var(--bg);display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px">
+          <span style="color:var(--text-dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em">Справочник</span>
+          <a href="{{ url_for('directory_detail', role='brand', org_key=d.inn) }}"
+             style="font-weight:600">{{ d.name_canonical or d.inn }}</a>
+          {% if d.org_status %}<span class="badge {% if 'ктив' not in d.org_status %}stopped{% else %}delivered{% endif %}">{{ d.org_status }}</span>
+          {% else %}<span style="color:var(--text-dim)">статус не проверен</span>{% endif %}
+        </div>
+        {% endif %}
         <label>Бренд / коммерческое название застройщика<input type="text" name="brand_name" value="{{ row.brand_name or '' }}" placeholder="напр. название бренда, под которым продаётся ЖК"></label>
+        <label>ИНН бренд-компании<input type="text" name="brand_inn" value="{{ row.brand_inn or '' }}" placeholder="напр. если бренд — отдельное юрлицо, которое может ликвидироваться"></label>
         <div>
           <button type="submit" formaction="{{ url_for('set_brand_status', cam_id=row.cam_id) }}" formnovalidate
             style="border-color:{{ 'var(--bad)' if row.brand_status == 'not_found' else 'var(--border-hi)' }};color:{{ 'var(--bad)' if row.brand_status == 'not_found' else 'var(--text)' }}">
@@ -196,7 +208,7 @@
         </datalist>
         <label class="wide">Ссылка на коммерческую продажу (domtut / imo.uz / др.)<input type="text" name="listing_url" value="{{ row.listing_url or '' }}" placeholder="https://domtut.uz/... или https://imo.uz/..."></label>
         <div class="wide">
-          <button type="submit" name="reset_fields" value="brand_name,delivered_year,holding_name,listing_url" formnovalidate
+          <button type="submit" name="reset_fields" value="brand_name,brand_inn,delivered_year,holding_name,listing_url" formnovalidate
             onclick="return confirm('Сбросить бренд/год сдачи/холдинг/ссылку (это чисто ручные поля — очистятся, не восстановятся)?')">↺ Сбросить блок</button>
         </div>
       </div>
