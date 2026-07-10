@@ -70,8 +70,56 @@ def probe(inn):
 
 import html as html_lib
 import re
+import time
 
-ORGINFO_SEARCH = 'https://orginfo.uz/ru/search/all/?q={inn}'
+# несколько вариантов поиска: язык мог смениться/редиректить, а раскладка
+# результатов отличаться — пробуем по очереди, пока не найдём карточку
+ORGINFO_SEARCH_URLS = (
+    'https://orginfo.uz/ru/search/all/?q={inn}',
+    'https://orginfo.uz/ru/search/organizations/?q={inn}',
+    'https://orginfo.uz/search/all/?q={inn}',
+    'https://orginfo.uz/uz/search/all/?q={inn}',
+)
+# ссылка на карточку: язык в URL бывает /ru/ | /uz/ | /en/ или вовсе без него
+ORG_LINK_RE = re.compile(r'href="((?:/(?:ru|uz|en))?/organization/[^"]+)"')
+
+_orginfo_session = None
+
+
+def _get_orginfo_session():
+    """requests.Session с прогревом главной страницей — тот же приём, что
+    вылечил reyting.mc.uz: без сессионных кук часть порталов отдаёт
+    заглушку/403 вместо контента."""
+    global _orginfo_session
+    if _orginfo_session is None:
+        import requests
+        s = requests.Session()
+        s.headers.update({
+            'User-Agent': ('Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                           'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'ru-RU,ru;q=0.9,uz;q=0.8,en;q=0.7',
+        })
+        try:
+            s.get('https://orginfo.uz/', timeout=15)
+        except Exception:
+            pass
+        _orginfo_session = s
+    return _orginfo_session
+
+
+def _get_html(url, timeout=15, attempts=2):
+    """GET с ретраем; возвращает (status_code, text). Бросает последнюю ошибку."""
+    last_err = None
+    for i in range(attempts):
+        try:
+            resp = _get_orginfo_session().get(url, timeout=timeout)
+            return resp.status_code, resp.text
+        except Exception as e:
+            last_err = e
+            if i + 1 < attempts:
+                time.sleep(1.5)
+    raise last_err
 
 
 def fetch_orginfo(inn, timeout=15):
@@ -80,19 +128,36 @@ def fetch_orginfo(inn, timeout=15):
 
     Возвращает dict с полями или {'error': ...}.
     """
-    try:
-        _, _, search_html = try_url(ORGINFO_SEARCH.format(inn=inn), timeout=timeout)
-    except Exception as e:
-        return {'error': f'поиск: {e}', 'inn': inn}
+    inn = str(inn).strip()
+    card_url = None
+    search_errors = []
+    for tpl in ORGINFO_SEARCH_URLS:
+        url = tpl.format(inn=inn)
+        try:
+            status, search_html = _get_html(url, timeout=timeout)
+        except Exception as e:
+            search_errors.append(f'{url} -> {e}')
+            continue
+        if status != 200:
+            search_errors.append(f'{url} -> HTTP {status}')
+            continue
+        m = ORG_LINK_RE.search(search_html)
+        if m:
+            card_url = 'https://orginfo.uz' + html_lib.unescape(m.group(1))
+            break
+        low = search_html.lower()
+        if 'captcha' in low or 'cloudflare' in low:
+            search_errors.append(f'{url} -> похоже на антибот/captcha')
+        else:
+            search_errors.append(f'{url} -> 200, но ссылки на карточку нет')
+    if not card_url:
+        return {'error': 'организация не найдена в поиске: ' + ' | '.join(search_errors),
+                'inn': inn}
 
-    # ссылка на карточку организации из результатов поиска
-    m = re.search(r'href="(/ru/organization/[^"]+)"', search_html)
-    if not m:
-        return {'error': 'организация не найдена в поиске', 'inn': inn}
-    card_url = 'https://orginfo.uz' + html_lib.unescape(m.group(1))
-
     try:
-        _, _, page = try_url(card_url, timeout=timeout)
+        status, page = _get_html(card_url, timeout=timeout)
+        if status != 200:
+            return {'error': f'карточка: HTTP {status}', 'inn': inn, 'url': card_url}
     except Exception as e:
         return {'error': f'карточка: {e}', 'inn': inn, 'url': card_url}
 
@@ -167,6 +232,19 @@ def _bulk_orginfo():
     if limit:
         rows = rows[:limit]
     inns = sorted({inn for _, inn in rows})
+
+    # fail-fast: если сайт лежит/блокирует — первые же запросы падают все
+    # подряд; нет смысла молоть весь справочник с ошибками
+    probe_inn = inns[0] if inns else None
+    if probe_inn:
+        probe_result = fetch_orginfo(probe_inn)
+        if probe_result.get('error'):
+            print(f'Пробный запрос ({probe_inn}) не прошёл:\n  {probe_result["error"]}')
+            print('\nСайт недоступен или блокирует запросы — bulk остановлен.')
+            print('Проверьте вручную: python3 org_enrich.py orginfo ' + probe_inn)
+            print('Если в браузере карточка открывается, а скрипт падает — '
+                  'пришлите вывод, поправлю селекторы.')
+            return
 
     ok = errors = liq = 0
     done = 0
